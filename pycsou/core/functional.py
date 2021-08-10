@@ -243,7 +243,9 @@ class ProximableFunctional(Functional):
 
     def __mul__(self, other: Union[Number, Map, UnitaryOperator, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) \
             -> Union[MapComp, 'ProxFuncPreComp', 'ProxFuncPreCompUnitOp']:
-        if isinstance(other, Number) or isinstance(other, np.ndarray):
+
+        # if isinstance(other, Number) or isinstance(other, np.ndarray) :
+        if isinstance(other, Number) or isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
             return ProxFuncPreComp(self, scale=other, shift=0)
         elif isinstance(other, UnitaryOperator):
             return ProxFuncPreCompUnitOp(self, other)
@@ -295,7 +297,7 @@ class ProxFuncAffineSum(ProximableFunctional):
 
 
 class ProxFuncPreComp(ProximableFunctional):
-    def __init__(self, prox_func: ProximableFunctional, scale: Union[Number, np.ndarray],
+    def __init__(self, prox_func: ProximableFunctional, scale: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray],
                  shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]):
         super(ProxFuncPreComp, self).__init__(dim=prox_func.dim, data=prox_func.data,
                                               is_differentiable=prox_func.is_differentiable)

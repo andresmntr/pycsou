@@ -147,14 +147,14 @@ class Map(ABC):
 
         Parameters
         ----------
-        arr: np.ndarray
+        arr: Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             Input array.
         axis: int
             Axis along which ``arr`` is sliced.
 
         Returns
         -------
-        np.ndarray
+        Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
            The output array. The shape of the latter is identical to the shape of ``arr``, except along the specified axis dimension.
            This axis is removed, and replaced with new dimensions equal to ``self.shape[0]``.
            If ``self.shape[0]==1`` the output array will have one fewer dimensions than ``arr``.

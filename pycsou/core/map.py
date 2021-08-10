@@ -139,7 +139,7 @@ class Map(ABC):
             Value of ``arg`` through the map.
         """
         pass
-    
+
     @infer_array_module(decorated_object_type='method')
     def apply_along_axis(self, arr: Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], axis: int = 0, _xp: Optional[types.ModuleType] = None) -> Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         r"""
@@ -187,13 +187,13 @@ class Map(ABC):
                 f"Array size along specified axis and the map domain's dimension differ: {arr.shape[axis]} != {self.shape[1]}.")
         return _xp.apply_along_axis(func1d=self.__call__, axis=axis, arr=arr)
 
-    def shifter(self, shift: Union[Number, np.ndarray]) -> 'MapShifted':
+    def shifter(self, shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'MapShifted':
         r"""
         Returns a shifted version of the map.
 
         Parameters
         ----------
-        shift: Union[Number, np.ndarray]
+        shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             Shift vector.
 
         Returns
@@ -208,13 +208,13 @@ class Map(ABC):
         """
         return MapShifted(map=self, shift=shift)
 
-    def __add__(self, other: 'Map') -> 'MapSum':
+    def __add__(self, other: Union['Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'MapSum':
         r"""
         Add a map with another map instance.
 
         Parameters
         ----------
-        other: Union['Map', np.ndarray]
+        other: Union['Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             The other map or array to be added.
 
         Returns
@@ -235,13 +235,13 @@ class Map(ABC):
         else:
             raise NotImplementedError
 
-    def __radd__(self, other: 'Map') -> 'MapSum':
+    def __radd__(self, other: Union['Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'MapSum':
         r"""
         Add a map with another map instance when the latter is on the right hand side of the summation.
 
         Parameters
         ----------
-        other: Union['Map', np.ndarray]
+        other: Union['Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             The other map or array to be added.
 
         Returns
@@ -263,7 +263,7 @@ class Map(ABC):
         else:
             raise NotImplementedError
 
-    def __mul__(self, other: Union[Number, 'Map', np.ndarray]) -> Union['MapComp', np.ndarray]:
+    def __mul__(self, other: Union[Number, 'Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union['MapComp', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         r"""
         Multiply a map with another map, a scalar, or an array.
 
@@ -275,12 +275,12 @@ class Map(ABC):
 
         Parameters
         ----------
-        other: Union[Number, 'Map', np.ndarray]
+        other: Union[Number, 'Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             Scalar, map or array with which to multiply.
 
         Returns
         -------
-        :py:class:`~pycsou.core.map.MapComp`, np.ndarray
+        :py:class: Union[`~pycsou.core.map.MapComp`, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             Composition of the map with another map, or product with a scalar or array.
 
         Raises
@@ -305,7 +305,7 @@ class Map(ABC):
         else:
             raise NotImplementedError
 
-    def __rmul__(self, other: Union[Number, 'Map']) -> 'MapComp':
+    def __rmul__(self, other: Union[Number, 'Map', cp.ndarray, da.core.Array, jnp.ndarray]) -> 'MapComp':
         if isinstance(other, Number):
             from pycsou.linop.base import HomothetyMap
 
@@ -324,7 +324,7 @@ class Map(ABC):
         r"""Negates a map. Alias for ``self.__mul__(-1)``."""
         return self.__mul__(-1)
 
-    def __sub__(self, other: Union['Map', np.ndarray]) -> Union['MapSum', 'MapBias']:
+    def __sub__(self, other: Union['Map', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union['MapSum', 'MapBias']:
         r"""Substracts a map, scalar, or array to another map. Alias for ``self.__add__(other.__neg__())``."""
         other = other.__neg__()
         return self.__add__(other)
@@ -348,14 +348,14 @@ class Map(ABC):
 
 
 class MapShifted(Map):
-    def __init__(self, map: Map, shift: Union[Number, np.ndarray]):
+    def __init__(self, map: Map, shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]):
         self.map = map
         self.shift = shift
         if shift.size != map.shape[1]:
             raise TypeError('Invalid shift size.')
         Map.__init__(self, shape=map.shape, is_linear=map.is_linear, is_differentiable=map.is_differentiable)
 
-    def __call__(self, arg: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         return self.map(arg + self.shift)
 
 
@@ -369,7 +369,7 @@ class MapSum(Map):
                          is_differentiable=map1.is_differentiable & map2.is_differentiable)
             self.map1, self.map2 = map1, map2
 
-    def __call__(self, arg: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         return self.map1(arg) + self.map2(arg)
 
 
@@ -396,7 +396,7 @@ class MapComp(Map):
             self.map1 = map1
             self.map2 = map2
 
-    def __call__(self, arg: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         return self.map1(self.map2(arg))
 
 
@@ -470,13 +470,13 @@ class DifferentiableMap(Map):
         self.diff_lipschitz_cst = diff_lipschitz_cst
 
     @abstractmethod
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> 'LinearOperator':
+    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'LinearOperator':
         r"""
         Transpose of the Jacobian matrix of the differentiable map evaluated at ``arg``.
         
         Parameters
         ----------
-        arg: Union[Number, np.ndarray]
+        arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             Point at which the transposed Jacobian matrix is evaluated.
 
         Returns
@@ -486,7 +486,7 @@ class DifferentiableMap(Map):
         """
         pass
 
-    def gradient(self, arg: Union[Number, np.ndarray]) -> 'LinearOperator':
+    def gradient(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'LinearOperator':
         r"""
         Alias for ``self.jacobianT``.
         """
@@ -504,13 +504,13 @@ class DifferentiableMap(Map):
         """
         pass
 
-    def shifter(self, shift: Union[Number, np.ndarray]) -> 'DiffMapShifted':
+    def shifter(self, shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'DiffMapShifted':
         r"""
         Returns a shifted version of the map.
 
         Parameters
         ----------
-        shift: Union[Number, np.ndarray]
+        shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
             Shift vector.
 
         Returns
@@ -544,8 +544,8 @@ class DifferentiableMap(Map):
         else:
             raise NotImplementedError
 
-    def __mul__(self, other: Union[Number, 'Map', 'DifferentiableMap', np.ndarray]) \
-            -> Union['MapComp', 'DiffMapComp', np.ndarray]:
+    def __mul__(self, other: Union[Number, 'Map', 'DifferentiableMap', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) \
+            -> Union['MapComp', 'DiffMapComp', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         if isinstance(other, Number):
             from pycsou.linop.base import HomothetyMap
 
@@ -575,13 +575,13 @@ class DifferentiableMap(Map):
 
 
 class DiffMapShifted(MapShifted, DifferentiableMap):
-    def __init__(self, map: DifferentiableMap, shift: Union[Number, np.ndarray]):
+    def __init__(self, map: DifferentiableMap, shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]):
         MapShifted.__init__(self, map=map, shift=shift)
         DifferentiableMap.__init__(self, shape=self.shape, is_linear=self.is_linear,
                                    lipschitz_cst=self.map.lipschitz_cst,
                                    diff_lipschitz_cst=self.map.diff_lipschitz_cst)
 
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> 'LinearOperator':
+    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'LinearOperator':
         return self.map.jacobianT(arg + self.shift)
 
 
@@ -592,7 +592,7 @@ class DiffMapSum(MapSum, DifferentiableMap):
                                    lipschitz_cst=self.map1.lipschitz_cst + self.map2.lipschitz_cst,
                                    diff_lipschitz_cst=self.map1.diff_lipschitz_cst + self.map2.diff_lipschitz_cst)
 
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> 'LinearOperator':
+    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'LinearOperator':
         return self.map1.jacobianT(arg) + self.map2.jacobianT(arg)
 
 
@@ -619,7 +619,7 @@ class DiffMapComp(MapComp, DifferentiableMap):
         DifferentiableMap.__init__(self, shape=self.shape, is_linear=self.is_linear,
                                    lipschitz_cst=lipschitz_cst, diff_lipschitz_cst=diff_lipschitz_cst)
 
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> 'LinearOperator':
+    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'LinearOperator':
         return self.map2.jacobianT(arg) * self.map1.jacobianT(self.map2(arg))
 
 
@@ -730,7 +730,7 @@ class MapStack(Map):
                      is_linear=bool(np.prod(self.is_linear_list).astype(bool)),
                      is_differentiable=bool(np.prod(self.is_differentiable_list).astype(bool)))
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         if self.axis == 0:
             if self.n_jobs == 1:
                 out_list = [map_.__call__(x).flatten() for map_ in self.maps]
@@ -948,7 +948,7 @@ class DiffMapStack(MapStack, DifferentiableMap):
         DifferentiableMap.__init__(self, shape=self.shape, is_linear=self.is_linear, lipschitz_cst=lipschitz_cst,
                                    diff_lipschitz_cst=diff_lipschitz_cst)
 
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> Union['LinOpHStack', 'LinOpVStack']:
+    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union['LinOpHStack', 'LinOpVStack']:
         from pycsou.func.base import ExplicitLinearFunctional
         jacobianT_list = []
         if self.axis == 0:

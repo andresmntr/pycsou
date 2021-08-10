@@ -295,11 +295,12 @@ class Map(ABC):
         """
         if isinstance(other, Number):
             from pycsou.linop.base import HomothetyMap
-
             other = HomothetyMap(constant=other, size=self.shape[1])
-
-        if isinstance(other, np.ndarray):
+        
+        # if isinstance(other, np.ndarray):
+        if isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
             return self(other)
+        
         elif isinstance(other, Map):
             return MapComp(self, other)
         else:
@@ -551,7 +552,8 @@ class DifferentiableMap(Map):
 
             other = HomothetyMap(constant=other, size=self.shape[1])
 
-        if isinstance(other, np.ndarray):
+        # if isinstance(other, np.ndarray):
+        if isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
             return self(other)
         elif isinstance(other, DifferentiableMap):
             return DiffMapComp(self, other)
@@ -955,7 +957,8 @@ class DiffMapStack(MapStack, DifferentiableMap):
             from pycsou.linop.base import LinOpVStack
             for diffmap in self.maps:
                 jacobian = diffmap.jacobianT(arg)
-                if isinstance(jacobian, np.ndarray):
+                # if isinstance(jacobian, np.ndarray):
+                if isinstance(jacobian, np.ndarray) or (cupy_enabled and isinstance(jacobian, cp.ndarray)) or (dask_enabled and isinstance(jacobian, da.core.Array)) or (jax_enabled and isinstance(jacobian, jnp.ndarray)):
                     jacobian = ExplicitLinearFunctional(jacobian, dtype=jacobian.dtype)
                 jacobianT_list.append(jacobian)
             return LinOpVStack(*jacobianT_list, n_jobs=self.n_jobs, joblib_backend=self.joblib_backend)
@@ -964,7 +967,8 @@ class DiffMapStack(MapStack, DifferentiableMap):
             arg_split = np.split(arg, self.sections)
             for i, diffmap in enumerate(self.maps):
                 jacobian = diffmap.jacobianT(arg_split[i])
-                if isinstance(jacobian, np.ndarray):
+                # if isinstance(jacobian, np.ndarray):
+                if isinstance(jacobian, np.ndarray) or (cupy_enabled and isinstance(jacobian, cp.ndarray)) or (dask_enabled and isinstance(jacobian, da.core.Array)) or (jax_enabled and isinstance(jacobian, jnp.ndarray)):
                     jacobian = ExplicitLinearFunctional(jacobian, dtype=jacobian.dtype)
                 jacobianT_list.append(jacobian)
             return LinOpHStack(*jacobianT_list, n_jobs=self.n_jobs, joblib_backend=self.joblib_backend)

@@ -468,7 +468,8 @@ class LinearOperator(DifferentiableMap):
 
             other = HomothetyMap(constant=other, size=self.shape[1])
 
-        if isinstance(other, np.ndarray):
+        #if isinstance(other, np.ndarray):
+        if isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
             return self(other)
         elif isinstance(other, LinearOperator):
             return LinOpComp(self, other)

@@ -37,4 +37,3 @@ def infer_array_module(decorated_object_type='method'):
             return call_fun(*args, **kwargs)
         return wrapper
     return make_decorator
-

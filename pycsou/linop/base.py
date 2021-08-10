@@ -54,6 +54,7 @@ class PyLopLinearOperator(LinearOperator):
         return self.Op.rmatvec(y)
 
 
+#TODO: add compatibility later
 class ExplicitLinearOperator(LinearOperator):
     r"""
     Construct an explicit linear operator.
@@ -98,7 +99,7 @@ class ExplicitLinearOperator(LinearOperator):
         else:
             return self.mat.conj().transpose().dot(y)
 
-
+#TODO: add compatibility later
 class DenseLinearOperator(ExplicitLinearOperator):
     r"""
     Construct a linear operator from a Numpy array.
@@ -117,7 +118,7 @@ class DenseLinearOperator(ExplicitLinearOperator):
         """
         super(DenseLinearOperator, self).__init__(array=ndarray, is_symmetric=is_symmetric)
 
-
+#TODO: add compatibility later
 class SparseLinearOperator(ExplicitLinearOperator):
     r"""
     Construct a linear operator from a sparse Scipy matrix (:py:class:`scipy.sparse.spmatrix`).
@@ -136,7 +137,7 @@ class SparseLinearOperator(ExplicitLinearOperator):
         """
         super(SparseLinearOperator, self).__init__(array=spmatrix, is_symmetric=is_symmetric)
 
-
+#TODO: add compatibility later
 class DaskLinearOperator(ExplicitLinearOperator):
     r"""
     Construct a linear operator from a Dask array (:py:class:`dask.array.core.Array`).

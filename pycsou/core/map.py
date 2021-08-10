@@ -10,12 +10,24 @@ Abstract classes for multidimensional nonlinear maps.
 
 import numpy as np
 import joblib as job
+import types
 
 from abc import ABC, abstractmethod
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 from numbers import Number
 from pycsou.util.misc import is_range_broadcastable, range_broadcast_shape
 
+from pycsou.util import infer_array_module, cupy_enabled, dask_enabled, jax_enabled
+
+if cupy_enabled:
+    import cupy as cp
+
+if dask_enabled:
+    import dask.array as da
+
+if jax_enabled:
+    import jax.numpy as jnp
+    import jax.dlpack as jxdl
 
 class Map(ABC):
     r"""
@@ -112,7 +124,7 @@ class Map(ABC):
         super(Map, self).__init__()
 
     @abstractmethod
-    def __call__(self, arg: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         r"""
         Call self as a function.
 
@@ -127,8 +139,9 @@ class Map(ABC):
             Value of ``arg`` through the map.
         """
         pass
-
-    def apply_along_axis(self, arr: np.ndarray, axis: int = 0) -> np.ndarray:
+    
+    @infer_array_module(decorated_object_type='method')
+    def apply_along_axis(self, arr: Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], axis: int = 0, _xp: Optional[types.ModuleType] = None) -> Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
         r"""
         Apply the map to 1-D slices along the given axis.
 
@@ -172,7 +185,7 @@ class Map(ABC):
         if arr.shape[axis] != self.shape[1]:
             raise ValueError(
                 f"Array size along specified axis and the map domain's dimension differ: {arr.shape[axis]} != {self.shape[1]}.")
-        return np.apply_along_axis(func1d=self.__call__, axis=axis, arr=arr)
+        return _xp.apply_along_axis(func1d=self.__call__, axis=axis, arr=arr)
 
     def shifter(self, shift: Union[Number, np.ndarray]) -> 'MapShifted':
         r"""

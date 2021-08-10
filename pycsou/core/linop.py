@@ -17,7 +17,7 @@ import pylops
 from pylops.optimization.leastsquares import NormalEquationsInversion
 import scipy.sparse.linalg as spls
 
-from pycsou.util import infer_array_module, cupy_enabled, dask_enabled, jax_enabled
+from pycsou.util import cupy_enabled, dask_enabled, jax_enabled
 
 if cupy_enabled:
     import cupy as cp

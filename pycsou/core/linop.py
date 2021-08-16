@@ -7,15 +7,16 @@
 r"""
 Abstract classes for multidimensional linear maps.
 """
+import numpy as np
+import numpy.typing as npt
+import pylops
+import scipy.sparse.linalg as spls
 
 from pycsou.core.map import DifferentiableMap, DiffMapSum, DiffMapComp, Map, MapSum, MapComp
-import numpy as np
 from typing import Union, Tuple, Optional
 from abc import abstractmethod
 from numbers import Number
-import pylops
 from pylops.optimization.leastsquares import NormalEquationsInversion
-import scipy.sparse.linalg as spls
 
 from pycsou.util import cupy_enabled, dask_enabled, jax_enabled
 
@@ -76,39 +77,39 @@ class LinearOperator(DifferentiableMap):
         self.is_symmetric = is_symmetric
         self.is_square = True if shape[0] == shape[1] else False
 
-    def matvec(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def matvec(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         r"""Alias for ``self.__call__`` to comply with Scipy's interface."""
         return self.__call__(x)
 
     @abstractmethod
-    def adjoint(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         r"""
         Evaluates the adjoint of the operator at a point.
 
         Parameters
         ----------
-        y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        y: Union[Number, npt.ArrayLike]
             Point at which the adjoint should be evaluated.
 
         Returns
         -------
-        Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[Number, npt.ArrayLike]
             Evaluation of the adjoint at ``y``.
         """
         pass
 
-    def transpose(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def transpose(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         r"""
         Evaluates the tranpose of the operator at a point.
 
         Parameters
         ----------
-        y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        y: Union[Number, npt.ArrayLike]
             Point at which the transpose should be evaluated.
 
         Returns
         -------
-        Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[Number, npt.ArrayLike]
             Evaluation of the transpose at ``y``.
 
         Notes
@@ -119,7 +120,7 @@ class LinearOperator(DifferentiableMap):
         """
         return self.adjoint(y.conj()).conj()
 
-    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray, None] = None) -> 'LinearOperator':
+    def jacobianT(self, arg: Union[Number, npt.ArrayLike, None] = None) -> 'LinearOperator':
         return self.get_adjointOp()
 
     def get_adjointOp(self) -> Union['LinearOperator', 'AdjointLinearOperator']:
@@ -186,7 +187,7 @@ class LinearOperator(DifferentiableMap):
         """
         return SymmetricLinearOperator(self.H * self)
 
-    def eigenvals(self, k: int, which='LM', **kwargs: dict) -> Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def eigenvals(self, k: int, which='LM', **kwargs: dict) -> Union[npt.ArrayLike]:
         r"""
         Find ``k`` eigenvalues of a square operator.
 
@@ -210,7 +211,7 @@ class LinearOperator(DifferentiableMap):
 
         Returns
         -------
-        Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[npt.ArrayLike]
             Array containing the ``k`` requested eigenvalues.
 
         Raises
@@ -236,7 +237,7 @@ class LinearOperator(DifferentiableMap):
                 'The function eigenvals is only for square linear operator. For non square linear operators, use the method singularvals.')
         return eigen_values
 
-    def singularvals(self, k: int, which='LM', **kwargs: dict) -> Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def singularvals(self, k: int, which='LM', **kwargs: dict) -> Union[npt.ArrayLike]:
         r"""
         Compute the largest or smallest ``k`` singular values of an operator.
         The order of the singular values is not guaranteed.
@@ -257,7 +258,7 @@ class LinearOperator(DifferentiableMap):
 
         Returns
         -------
-        Union[np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[npt.ArrayLike]
             Array containing the ``k`` requested singular values.
 
         Examples
@@ -405,13 +406,13 @@ class LinearOperator(DifferentiableMap):
         """
         return self.PyLop.cond(**kwargs)
 
-    def pinv(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], eps: Number = 0, **kwargs) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def pinv(self, y: Union[Number, npt.ArrayLike], eps: Number = 0, **kwargs) -> Union[Number, npt.ArrayLike]:
         r"""
         Evaluate the pseudo-inverse of the operator at ``y``.
 
         Parameters
         ----------
-        y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        y: Union[Number, npt.ArrayLike]
             Point at which the pseudo-inverse is evaluated.
         eps: Number
             Tikhonov damping.
@@ -420,7 +421,7 @@ class LinearOperator(DifferentiableMap):
 
         Returns
         -------
-        Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[Number, npt.ArrayLike]
             Evaluation of the pseudo-inverse of the operator at ``y``.
 
         Notes
@@ -450,8 +451,8 @@ class LinearOperator(DifferentiableMap):
         r"""Orthogonal projection operator onto the columns of ``self``. It is given by ``self.dagger * self``."""
         return SymmetricLinearOperator(self.dagger * self)
 
-    def __add__(self, other: Union['Map', 'DifferentiableMap', 'LinearOperator', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[
-        'MapSum', 'DiffMapSum', 'LinOpSum', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def __add__(self, other: Union['Map', 'DifferentiableMap', 'LinearOperator', npt.ArrayLike]) -> Union[
+        'MapSum', 'DiffMapSum', 'LinOpSum', npt.ArrayLike]:
         if isinstance(other, LinearOperator):
             return LinOpSum(self, other)
         elif isinstance(other, DifferentiableMap):
@@ -461,8 +462,8 @@ class LinearOperator(DifferentiableMap):
         else:
             raise NotImplementedError
 
-    def __mul__(self, other: Union['Map', 'DifferentiableMap', 'LinearOperator', Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[
-        'MapSum', 'DiffMapSum', 'LinOpSum', np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def __mul__(self, other: Union['Map', 'DifferentiableMap', 'LinearOperator', Number, npt.ArrayLike]) -> Union[
+        'MapSum', 'DiffMapSum', 'LinOpSum', npt.ArrayLike]:
         if isinstance(other, Number):
             from pycsou.linop.base import HomothetyMap
 
@@ -505,10 +506,10 @@ class AdjointLinearOperator(LinearOperator):
                                                     is_symmetric=LinOp.is_symmetric)
         self.Linop = LinOp
 
-    def __call__(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def __call__(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.Linop.adjoint(y)
 
-    def adjoint(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.Linop.matvec(x)
 
     def compute_lipschitz_cst(self, **kwargs: dict):
@@ -526,10 +527,10 @@ class TransposeLinearOperator(LinearOperator):
                                                       is_symmetric=LinOp.is_symmetric)
         self.Linop = LinOp
 
-    def __call__(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def __call__(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.Linop.adjoint(y.conj()).conj()
 
-    def adjoint(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.Linop.matvec(x)
 
 
@@ -545,7 +546,7 @@ class LinOpSum(LinearOperator, DiffMapSum):
                                 lipschitz_cst=self.lipschitz_cst)
         self.LinOp1, self.LinOp2 = LinOp1, LinOp2
 
-    def adjoint(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.LinOp1.adjoint(y) + self.LinOp2.adjoint(y)
 
 
@@ -561,7 +562,7 @@ class LinOpComp(LinearOperator, DiffMapComp):
                                 lipschitz_cst=self.lipschitz_cst)
         self.LinOp1, self.LinOp2 = LinOp1, LinOp2
 
-    def adjoint(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.LinOp2.adjoint(self.LinOp1.adjoint(y))
 
 
@@ -576,10 +577,10 @@ class SymmetricLinearOperator(LinearOperator):
                                                       lipschitz_cst=LinOp.lipschitz_cst)
         self.LinOp = LinOp
 
-    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.LinOp.__call__(x)
 
-    def adjoint(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.__call__(y)
 
 
@@ -605,10 +606,10 @@ class UnitaryOperator(LinearOperator):
 
         return IdentityOperator(size=self.size, dtype=self.dtype)
 
-    def eigenvals(self, k: int, which='LM', **kwargs: dict) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def eigenvals(self, k: int, which='LM', **kwargs: dict) -> Union[Number, npt.ArrayLike]:
         return self.singularvals(k=k, which='LM', **kwargs)
 
-    def singularvals(self, k: int, which='LM', **kwargs: dict) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def singularvals(self, k: int, which='LM', **kwargs: dict) -> Union[Number, npt.ArrayLike]:
         if k > np.fmin(self.shape[0], self.shape[1]):
             raise ValueError('The number of singular values must not exceed the smallest dimension size.')
         return np.ones(shape=(k,))
@@ -616,7 +617,7 @@ class UnitaryOperator(LinearOperator):
     def compute_lipschitz_cst(self, **kwargs: dict):
         self.lipschitz_cst = self.diff_lipschitz_cst = 1
 
-    def pinv(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], eps: Number = 0, **kwargs) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def pinv(self, y: Union[Number, npt.ArrayLike], eps: Number = 0, **kwargs) -> Union[Number, npt.ArrayLike]:
         return self.adjoint(y)
 
     @property
@@ -634,8 +635,8 @@ class LinOpPinv(LinearOperator):
         super(LinOpPinv, self).__init__(shape=LinOp.H.shape, dtype=LinOp.dtype, is_explicit=False, is_dense=False,
                                         is_dask=False, is_symmetric=LinOp.is_symmetric)
 
-    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return NormalEquationsInversion(Op=self.LinOp.PyLop, Regs=None, data=x, epsI=self.eps, returninfo=False)
 
-    def adjoint(self, y: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return LinOpPinv(LinOp=self.LinOp.H, eps=self.eps).__call__(y)

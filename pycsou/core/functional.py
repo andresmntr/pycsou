@@ -8,13 +8,15 @@ r"""
 Abstract classes for functionals.
 """
 
+import numpy as np
+import numpy.typing as npt
+import warnings
+
 from pycsou.core.map import Map, DifferentiableMap, MapSum, MapComp
 from abc import abstractmethod
 from pycsou.core.linop import LinearOperator, UnitaryOperator
 from typing import Union, Optional
 from numbers import Number
-import numpy as np
-import warnings
 
 from pycsou.util import cupy_enabled, dask_enabled, jax_enabled
 
@@ -37,14 +39,14 @@ class Functional(Map):
     Functionals are (real) single-valued nonlinear maps.
     """
 
-    def __init__(self, dim: int, data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray] = None, is_differentiable: bool = False,
+    def __init__(self, dim: int, data: Union[None, Number, npt.ArrayLike] = None, is_differentiable: bool = False,
                  is_linear: bool = False):
         r"""
         Parameters
         ----------
         dim: int,
             Dimension of the functional's domain.
-        data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        data: Union[None, Number, npt.ArrayLike]
             Optional data vector.
         is_differentiable: bool
             Whether the functional is differentiable or not.
@@ -61,14 +63,14 @@ class DifferentiableFunctional(Functional, DifferentiableMap):
     Base class for differentiable functionals.
     """
 
-    def __init__(self, dim: int, data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray] = None, is_linear: bool = False,
+    def __init__(self, dim: int, data: Union[None, Number, npt.ArrayLike] = None, is_linear: bool = False,
                  lipschitz_cst: float = np.infty, diff_lipschitz_cst: float = np.infty):
         r"""
         Parameters
         ----------
         dim: int,
             Dimension of the functional's domain.
-        data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        data: Union[None, Number, npt.ArrayLike]
             Optional data vector.
         is_linear: bool
             Whether the functional is linear or not.
@@ -82,7 +84,7 @@ class DifferentiableFunctional(Functional, DifferentiableMap):
                                    diff_lipschitz_cst=diff_lipschitz_cst)
 
     @abstractmethod
-    def jacobianT(self, arg: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def jacobianT(self, arg: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         pass
 
 
@@ -91,7 +93,7 @@ class LinearFunctional(Functional, LinearOperator):
     Base class for linear functionals.
     """
 
-    def __init__(self, dim: int, data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray] = None, dtype: type = np.float64,
+    def __init__(self, dim: int, data: Union[None, Number, npt.ArrayLike] = None, dtype: type = np.float64,
                  is_explicit: bool = False, is_dense: bool = False, is_sparse: bool = False, is_dask: bool = False):
         Functional.__init__(self, dim=dim, data=data, is_differentiable=True, is_linear=True)
         LinearOperator.__init__(self, shape=self.shape, dtype=dtype, is_explicit=is_explicit, is_dense=is_dense,
@@ -145,14 +147,14 @@ class ProximableFunctional(Functional):
 
     """
 
-    def __init__(self, dim: int, data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray] = None, is_differentiable: bool = False,
+    def __init__(self, dim: int, data: Union[None, Number, npt.ArrayLike] = None, is_differentiable: bool = False,
                  is_linear: bool = False):
         r"""
         Parameters
         ----------
         dim: int,
             Dimension of the functional's domain.
-        data: Union[None, Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        data: Union[None, Number, npt.ArrayLike]
             Optional data vector.
         is_linear: bool
             Whether the functional is linear or not.
@@ -166,38 +168,38 @@ class ProximableFunctional(Functional):
                                                    is_linear=is_linear)
 
     @abstractmethod
-    def prox(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], tau: Number) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         r"""
         Evaluate the proximity operator of the ``tau``-scaled functional at the point ``x``.
 
         Parameters
         ----------
-        x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        x: Union[Number, npt.ArrayLike]
             Point at which to perform the evaluation.
         tau: Number
             Scale.
 
         Returns
         -------
-        Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[Number, npt.ArrayLike]
             Evaluation of the proximity operator of the ``tau``-scaled functional at the point ``x``.
         """
         pass
 
-    def fenchel_prox(self, z: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], sigma: Number) -> Union[Number, np.ndarray]:
+    def fenchel_prox(self, z: Union[Number, npt.ArrayLike], sigma: Number) -> Union[Number, npt.ArrayLike]:
         r"""
         Evaluate the proximity operator of the ``sigma``-scaled Fenchel conjugate of the functional at a point ``z``.
 
         Parameters
         ----------
-        z: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        z: Union[Number, npt.ArrayLike]
             Point at which to perform the evaluation.
         sigma: Number
             Scale.
 
         Returns
         -------
-        Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        Union[Number, npt.ArrayLike]
             Result of the evaluation.
 
         Notes
@@ -217,13 +219,13 @@ class ProximableFunctional(Functional):
         """
         return z - sigma * self.prox(x=z / sigma, tau=1 / sigma)
 
-    def shifter(self, shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> 'ProxFuncPreComp':
+    def shifter(self, shift: Union[Number, npt.ArrayLike]) -> 'ProxFuncPreComp':
         r"""
         Returns a shifted version of the functional.
 
         Parameters
         ----------
-        shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]
+        shift: Union[Number, npt.ArrayLike]
             Shift vector.
 
         Returns
@@ -241,7 +243,7 @@ class ProximableFunctional(Functional):
         else:
             raise NotImplementedError
 
-    def __mul__(self, other: Union[Number, Map, UnitaryOperator, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) \
+    def __mul__(self, other: Union[Number, Map, UnitaryOperator, npt.ArrayLike]) \
             -> Union[MapComp, 'ProxFuncPreComp', 'ProxFuncPreCompUnitOp']:
 
         # if isinstance(other, Number) or isinstance(other, np.ndarray) :
@@ -271,10 +273,10 @@ class ProxFuncPostComp(ProximableFunctional):
         self.scale = scale
         self.shift = shift
 
-    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return self.scale * self.prox_func.__call__(x) + self.shift
 
-    def prox(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         return self.prox_func.prox(x, tau * self.scale)
 
 
@@ -288,27 +290,27 @@ class ProxFuncAffineSum(ProximableFunctional):
         self.linear_part = linear_part
         self.intercept = intercept
 
-    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return self.prox_func.__call__(x) + self.linear_part.__call__(x) + self.intercept
 
-    def prox(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         a = self.linear_part.todense().mat.reshape(-1)
         return self.prox_func.prox(x - tau * a, tau)
 
 
 class ProxFuncPreComp(ProximableFunctional):
-    def __init__(self, prox_func: ProximableFunctional, scale: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray],
-                 shift: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]):
+    def __init__(self, prox_func: ProximableFunctional, scale: Union[Number, npt.ArrayLike],
+                 shift: Union[Number, npt.ArrayLike]):
         super(ProxFuncPreComp, self).__init__(dim=prox_func.dim, data=prox_func.data,
                                               is_differentiable=prox_func.is_differentiable)
         self.prox_func = prox_func
         self.scale = scale
         self.shift = shift
 
-    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return self.prox_func.__call__(self.scale * x + self.shift)
 
-    def prox(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], tau: Number) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         return (self.prox_func.prox(self.scale * x + self.shift, tau * (self.scale ** 2)) - self.shift) / self.scale
 
 
@@ -319,8 +321,8 @@ class ProxFuncPreCompUnitOp(ProximableFunctional):
         self.prox_func = prox_func
         self.unitary_op = unitary_op
 
-    def __call__(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return self.prox_func.__call__(self.unitary_op.matvec(x))
 
-    def prox(self, x: Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray], tau: Number) -> Union[Number, np.ndarray, cp.ndarray, da.core.Array, jnp.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         return self.unitary_op.adjoint(self.prox_func.prox(self.unitary_op.matvec(x), tau=tau))

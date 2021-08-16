@@ -8,18 +8,31 @@ r"""
 Classes for constructing linear operators.
 """
 
-from numbers import Number
-from typing import Union, Optional, Tuple, List
 
+import types
 import numpy as np
+import numpy.typing as npt
 import pylops
 import joblib as job
-from dask import array as da
+import pycsou.util.numpy as pnp
+
+from numbers import Number
+from typing import Union, Optional, Tuple, List
 from scipy import sparse as sparse
 
 from pycsou.core.linop import LinearOperator
 from pycsou.core.map import DiffMapStack
+from pycsou.util import infer_array_module, cupy_enabled, dask_enabled, jax_enabled
 
+if cupy_enabled:
+    import cupy as cp
+
+if dask_enabled:
+    import dask.array as da
+
+if jax_enabled:
+    import jax.numpy as jnp
+    import jax.dlpack as jxdl
 
 class PyLopLinearOperator(LinearOperator):
     r"""
@@ -47,10 +60,10 @@ class PyLopLinearOperator(LinearOperator):
                                                   is_symmetric=is_symmetric, lipschitz_cst=lipschitz_cst)
         self.Op = PyLop
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.Op.matvec(x)
 
-    def adjoint(self, y: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         return self.Op.rmatvec(y)
 
 
@@ -270,9 +283,10 @@ class LinOpStack(LinearOperator, DiffMapStack):
                                 is_symmetric=bool(np.prod(self.is_symmetric_list).astype(bool)),
                                 lipschitz_cst=self.lipschitz_cst)
 
-    def adjoint(self, y: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, y: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
         if self.axis == 0:
-            y_split = np.split(y, self.sections)
+            y_split = _xp.split(y, self.sections)
             if self.n_jobs == 1:
                 result = 0
                 for i, linop in enumerate(self.linops):
@@ -281,7 +295,7 @@ class LinOpStack(LinearOperator, DiffMapStack):
                 with job.Parallel(backend=self.joblib_backend, n_jobs=self.n_jobs, verbose=False) as parallel:
                     out_list = parallel(job.delayed(linop.adjoint)(y_split[i])
                                         for i, linop in enumerate(self.linops))
-                    result = np.sum(np.stack(out_list, axis=0), axis=0)
+                    result = _xp.sum(_xp.stack(out_list, axis=0), axis=0)
             return result
         else:
             if self.n_jobs == 1:
@@ -290,7 +304,7 @@ class LinOpStack(LinearOperator, DiffMapStack):
                 with job.Parallel(backend=self.joblib_backend, n_jobs=self.n_jobs, verbose=False) as parallel:
                     out_list = parallel(job.delayed(linop.adjoint)(y) for linop in self.linops)
                 out_list = [y.flatten() for y in out_list]
-            return np.concatenate(out_list, axis=0)
+            return _xp.concatenate(out_list, axis=0)
 
 
 class LinOpVStack(LinOpStack):
@@ -393,7 +407,7 @@ def BlockOperator(linops: List[List[LinearOperator]], n_jobs: int = 1) -> PyLopL
         \end{bmatrix} =
         \begin{bmatrix}
             \mathbf{L_{1,1}} \mathbf{x}_{1} + \mathbf{L_{1,2}} \mathbf{x}_{2} +
-            \mathbf{L_{1,M}} \mathbf{x}_{M} \\
+            \mathbf{L_{1,M}} \mathbf{x}_{M}Block \\
             \mathbf{L_{2,1}} \mathbf{x}_{1} + \mathbf{L_{2,2}} \mathbf{x}_{2} +
             \mathbf{L_{2,M}} \mathbf{x}_{M} \\
             \vdots     \\
@@ -548,34 +562,38 @@ def BlockDiagonalOperator(*linops: LinearOperator, n_jobs: int = 1) -> PyLopLine
     block_diag = pylops.BlockDiag(ops=pylinops)
     return PyLopLinearOperator(block_diag, lipschitz_cst=lipschitz_cst)
 
-
+########################################################3
+# VAS POR AQUIIIII
+#################################################3
 class DiagonalOperator(LinearOperator):
     r"""
     Construct a diagonal operator.
     """
 
-    def __init__(self, diag: Union[Number, np.ndarray]):
+    @infer_array_module(decorated_object_type='method')
+    def __init__(self, diag: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None):
         """
         Parameters
         ----------
         diag:  Union[Number, np.ndarray]
             Diagonal of the operator.
         """
-        self.diag = np.asarray(diag).reshape(-1)
+        self.diag = _xp.asarray(diag).reshape(-1)
         super(DiagonalOperator, self).__init__(shape=(self.diag.size, self.diag.size), dtype=self.diag.dtype,
                                                is_explicit=False, is_dense=False, is_sparse=False, is_dask=False,
-                                               is_symmetric=np.alltrue(np.isreal(self.diag)))
+                                               is_symmetric=np.alltrue(_xp.isreal(self.diag)))
         self.lipschitz_cst = self.diff_lipschitz_cst = np.max(diag)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, np.ndarray, npt.ArrayLike]:
         if self.shape[1] == 1:
-            return np.asscalar(self.diag * x)
+            # return np.asscalar(self.diag * x)
+            return pnp.asscalar(self.diag * x)
         else:
             return self.diag * x
 
     def adjoint(self, y: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
         if self.shape[0] == 1:
-            return np.asscalar(self.diag.conj() * y)
+            return pnp.asscalar(self.diag.conj() * y)
         else:
             return self.diag.conj() * y
 
@@ -585,7 +603,7 @@ class IdentityOperator(DiagonalOperator):
     Square identity operator.
     """
 
-    def __init__(self, size: int, dtype: Optional[type] = None):
+    def __init__(self, size: int, dtype: Optional[type] = None, xp: Optional[types.ModuleType] = np):
         r"""
         Parameters
         ----------
@@ -593,8 +611,10 @@ class IdentityOperator(DiagonalOperator):
             Dimension of the domain.
         dtype: Optional[type]
             Data type of the operator.
+        xp: Optional[types.ModuleType] = np
+            Array module.
         """
-        diag = np.ones(shape=(size,), dtype=dtype)
+        diag = xp.ones(shape=(size,), dtype=dtype)
         super(IdentityOperator, self).__init__(diag)
         self.lipschitz_cst = self.diff_lipschitz_cst = 1
 
@@ -604,23 +624,28 @@ class NullOperator(LinearOperator):
     Null operator.
     """
 
-    def __init__(self, shape: Tuple[int, int], dtype: Optional[type] = np.float64):
+    def __init__(self, shape: Tuple[int, int], dtype: Optional[type] = np.float64, xp: Optional[types.ModuleType] = np):
         super(NullOperator, self).__init__(shape=shape, dtype=dtype,
                                            is_explicit=False, is_dense=False, is_sparse=False, is_dask=False,
                                            is_symmetric=True if (shape[0] == shape[1]) else False)
         self.lipschitz_cst = self.diff_lipschitz_cst = 0
+        self.xp = xp
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
-        return np.zeros(shape=self.shape[0], dtype=self.dtype)
+    # @infer_array_module(decorated_object_type='method')
+    # def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[type] =None) -> Union[Number, npt.ArrayLike]:
+    def __call__(self, x: Union[Number, npt.ArrayLike] = None) -> Union[Number, npt.ArrayLike]:
+        return self.xp.zeros(shape=self.shape[0], dtype=self.dtype)
 
-    def adjoint(self, y: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
-        return np.zeros(shape=self.shape[1], dtype=self.dtype)
+    # @infer_array_module(decorated_object_type='method')
+    # def adjoint(self, y: Union[Number, npt.ArrayLike], _xp: Optional[type] =None) -> Union[Number, npt.ArrayLike]:
+    def adjoint(self, y: Union[Number, npt.ArrayLike] = None) -> Union[Number, npt.ArrayLike]:
+        return self.xp.zeros(shape=self.shape[1], dtype=self.dtype)
 
-    def eigenvals(self, k: int, which='LM', **kwargs) -> np.ndarray:
-        return np.zeros(shape=(k,), dtype=self.dtype)
+    def eigenvals(self, k: int, which='LM', **kwargs) -> npt.ArrayLike:
+        return self.xp.zeros(shape=(k,), dtype=self.dtype)
 
-    def singularvals(self, k: int, which='LM', **kwargs) -> np.ndarray:
-        return np.zeros(shape=(k,), dtype=self.dtype)
+    def singularvals(self, k: int, which='LM', **kwargs) -> npt.ArrayLike:
+        return self.xp.zeros(shape=(k,), dtype=self.dtype)
 
 
 class HomothetyMap(DiagonalOperator):
@@ -672,17 +697,17 @@ class PolynomialLinearOperator(LinearOperator):
 
     """
 
-    def __init__(self, LinOp: LinearOperator, coeffs: Union[np.ndarray, list, tuple]):
+    def __init__(self, LinOp: LinearOperator, coeffs: Union[npt.ArrayLike, list, tuple], xp: Optional[types.ModuleType] = np):
         r"""
 
         Parameters
         ----------
         LinOp: pycsou.core.LinearOperator
             Square linear operator :math:`\mathbf{L}`.
-        coeffs: Union[np.ndarray, list, tuple]
+        coeffs: Union[npt.ArrayLike, list, tuple]
             Coefficients :math:`\{a_0,\ldots, a_N\}` of the polynomial :math:`P`.
         """
-        self.coeffs = np.asarray(coeffs).astype(LinOp.dtype)
+        self.coeffs = xp.asarray(coeffs).astype(LinOp.dtype)
         if LinOp.shape[0] != LinOp.shape[1]:
             raise ValueError('Input linear operator must be square.')
         else:
@@ -693,7 +718,7 @@ class PolynomialLinearOperator(LinearOperator):
                                                        is_dask=LinOp.is_dask,
                                                        is_symmetric=LinOp.is_symmetric)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         z = x.astype(self.dtype)
         y = self.coeffs[0] * x
         for i in range(1, len(self.coeffs)):
@@ -701,15 +726,16 @@ class PolynomialLinearOperator(LinearOperator):
             y += self.coeffs[i] * z
         return y
 
-    def adjoint(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
         if self.is_symmetric:
             return self(x)
         else:
             z = x.astype(self.dtype)
-            y = np.conj(self.coeffs[0]) * x
+            y = _xp.conj(self.coeffs[0]) * x
             for i in range(1, len(self.coeffs)):
                 z = self.Linop.adjoint(z)
-                y += np.conj(self.coeffs[i]) * z
+                y += _xp.conj(self.coeffs[i]) * z
             return y
 
 
@@ -789,12 +815,12 @@ class KroneckerProduct(LinearOperator):
             dtype=self.linop1.dtype,
             lipschitz_cst=self.linop1.lipschitz_cst * self.linop2.lipschitz_cst)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: npt.ArrayLike) -> npt.ArrayLike:
         X = x.reshape((self.linop2.shape[1], self.linop1.shape[1]))
         return self.linop2.apply_along_axis(self.linop1.apply_along_axis(X.transpose(), axis=0).transpose(),
                                             axis=0).flatten()
 
-    def adjoint(self, y: np.ndarray) -> np.ndarray:
+    def adjoint(self, y: npt.ArrayLike) -> npt.ArrayLike:
         Y = y.reshape((self.linop2.shape[0], self.linop1.shape[0]))
         return self.linop2.H.apply_along_axis(self.linop1.H.apply_along_axis(Y.transpose(), axis=0).transpose(),
                                               axis=0).flatten()
@@ -876,12 +902,12 @@ class KroneckerSum(LinearOperator):
             dtype=self.linop1.dtype,
             lipschitz_cst=self.linop1.lipschitz_cst + self.linop2.lipschitz_cst)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: npt.ArrayLike) -> npt.ArrayLike:
         X = x.reshape((self.linop2.shape[1], self.linop1.shape[1]))
         return self.linop1.apply_along_axis(X.transpose(), axis=0).transpose().flatten() + \
                self.linop2.apply_along_axis(X, axis=0).flatten()
 
-    def adjoint(self, y: np.ndarray) -> np.ndarray:
+    def adjoint(self, y: npt.ArrayLike) -> npt.ArrayLike:
         Y = y.reshape((self.linop2.shape[0], self.linop1.shape[0]))
         return self.linop1.H.apply_along_axis(Y.transpose(), axis=0).transpose().flatten() + \
                self.linop2.H.apply_along_axis(Y, axis=0).flatten()
@@ -966,26 +992,28 @@ class KhatriRaoProduct(LinearOperator):
             shape=(self.linop2.shape[0] * self.linop1.shape[0], self.linop2.shape[1]),
             dtype=self.linop1.dtype, lipschitz_cst=self.linop1.lipschitz_cst * self.linop2.lipschitz_cst)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: npt.ArrayLike, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
         if self.linop1.is_dense and self.linop2.is_dense:
             return (self.linop2.mat * x[None, :]) @ self.linop1.mat.transpose()
         elif self.linop1.is_sparse and self.linop2.is_sparse:
-            return np.asarray(self.linop2.mat.multiply(x[None, :]).dot(self.linop1.mat.transpose()))
+            return _xp.asarray(self.linop2.mat.multiply(x[None, :]).dot(self.linop1.mat.transpose()))
         else:
-            return self.linop2.apply_along_axis(self.linop1.apply_along_axis(np.diag(x), axis=0).transpose(),
+            return self.linop2.apply_along_axis(self.linop1.apply_along_axis(_xp.diag(x), axis=0).transpose(),
                                                 axis=0).flatten()
 
-    def adjoint(self, y: np.ndarray) -> np.ndarray:
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, y: npt.ArrayLike, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
         Y = y.reshape((self.linop2.shape[0], self.linop1.shape[0]))
         if self.linop1.is_dense and self.linop2.is_dense:
-            return np.sum((self.linop1.mat.transpose().conj() @ Y.transpose()).transpose() * self.linop2.mat.conj(),
+            return _xp.sum((self.linop1.mat.transpose().conj() @ Y.transpose()).transpose() * self.linop2.mat.conj(),
                           axis=0)
         elif self.linop1.is_sparse and self.linop2.is_sparse:
-            return np.asarray(
+            return _xp.asarray(
                 self.linop2.mat.conj().multiply(self.linop1.mat.transpose().conj().dot(Y.transpose()).transpose()).sum(
                     axis=0))
         else:
-            return np.diag(
+            return _xp.diag(
                 self.linop2.H.apply_along_axis(self.linop1.H.apply_along_axis(Y.transpose(), axis=0).transpose(),
                                                axis=0)).flatten()
 
@@ -998,3 +1026,4 @@ if __name__ == '__main__':
     D2hop = SecondDerivative(size=Nv * Nh, shape=(Nv, Nh), axis=1)
     D2vop = SecondDerivative(size=Nv * Nh, shape=(Nv, Nh), axis=0)
     Dblockdiag = BlockDiagonalOperator(D2vop, 0.5 * D2vop, -1 * D2hop)
+ 

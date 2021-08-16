@@ -11,13 +11,14 @@ Many of the linear operator provided in this module are derived from linear oper
 """
 
 import numpy as np
+import numpy.typing as npt
 import pylops.signalprocessing as pyconv
 import pylops
 from typing import Optional, Union
 from pycsou.linop.base import PyLopLinearOperator, SparseLinearOperator
 
 
-def Convolve1D(size: int, filter: np.ndarray, reshape_dims: Optional[tuple] = None, axis: int = 0,
+def Convolve1D(size: int, filter: npt.ArrayLike, reshape_dims: Optional[tuple] = None, axis: int = 0,
                dtype: type = 'float64', method: Optional[str] = None) -> PyLopLinearOperator:
     r"""
     1D convolution operator.
@@ -30,7 +31,7 @@ def Convolve1D(size: int, filter: np.ndarray, reshape_dims: Optional[tuple] = No
     ----------
     size: int
         Size of the input array.
-    filter: np.ndarray
+    filter: npt.ArrayLike
         1d compact filter. The latter should be real-valued and centered around its mid-size index.
     reshape_dims: Optional[tuple]
         Shape of the array to which the convolution should be applied.
@@ -164,7 +165,7 @@ def Convolve1D(size: int, filter: np.ndarray, reshape_dims: Optional[tuple] = No
     return PyLopLinearOperator(PyLop)
 
 
-def Convolve2D(size: int, filter: np.ndarray, shape: tuple, dtype: type = 'float64',
+def Convolve2D(size: int, filter: npt.ArrayLike, shape: tuple, dtype: type = 'float64',
                method: str = 'fft') -> PyLopLinearOperator:
     r"""
     2D convolution operator.
@@ -177,7 +178,7 @@ def Convolve2D(size: int, filter: np.ndarray, shape: tuple, dtype: type = 'float
     ----------
     size: int
         Size of the input array.
-    filter: np.ndarray
+    filter: npt.ArrayLike
         2d compact filter. The latter should be real-valued and centered around its central indices.
     shape: tuple
         Shape of the array to which the convolution should be applied.

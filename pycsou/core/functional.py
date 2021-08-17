@@ -93,7 +93,7 @@ class LinearFunctional(Functional, LinearOperator):
     Base class for linear functionals.
     """
 
-    def __init__(self, dim: int, data: Union[None, Number, npt.ArrayLike] = None, dtype: type = np.float64,
+    def __init__(self, dim: int, data: Union[None, Number, npt.ArrayLike] = None, dtype: type = np.float32,
                  is_explicit: bool = False, is_dense: bool = False, is_sparse: bool = False, is_dask: bool = False):
         Functional.__init__(self, dim=dim, data=data, is_differentiable=True, is_linear=True)
         LinearOperator.__init__(self, shape=self.shape, dtype=dtype, is_explicit=is_explicit, is_dense=is_dense,

@@ -491,7 +491,7 @@ class L21Norm(ProximableFunctional):
 
     .. doctest::
 
-       >>> x = np.arange(10,dtype=np.float64)
+       >>> x = np.arange(10,dtype=np.float32)
        >>> groups = np.concatenate((np.ones(5),2*np.ones(5)))
        >>> group_norm = L21Norm(dim=x.size,groups=groups)
        >>> type(group_norm)

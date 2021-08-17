@@ -401,7 +401,7 @@ Example: Implementing New Linear Operators
     from pycsou.core import LinearOperator
     
     class RepCol(LinearOperator):
-        def __init__(self, size: int, reps: int, dtype: type = np.float64):
+        def __init__(self, size: int, reps: int, dtype: type = np.float32):
             self.reps = reps
             super(RepCol, self).__init__(shape=(size*reps, size))
     

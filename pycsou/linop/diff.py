@@ -22,7 +22,7 @@ from numbers import Number
 
 
 def FirstDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, step: float = 1.0, edge: bool = True,
-                    dtype: str = 'float64', kind: str = 'forward') -> PyLopLinearOperator:
+                    dtype: str = 'float32', kind: str = 'forward') -> PyLopLinearOperator:
     r"""
     First derivative.
 
@@ -131,7 +131,7 @@ def FirstDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, ste
 
 
 def SecondDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, step: float = 1.0, edge: bool = True,
-                     dtype: str = 'float64') -> PyLopLinearOperator:
+                     dtype: str = 'float32') -> PyLopLinearOperator:
     r"""
     Second derivative.
 
@@ -220,7 +220,7 @@ def SecondDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, st
 
 
 def GeneralisedDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, step: float = 1.0, edge: bool = True,
-                          dtype: str = 'float64', kind_op='iterated', kind_diff='centered', **kwargs) -> LinearOperator:
+                          dtype: str = 'float32', kind_op='iterated', kind_diff='centered', **kwargs) -> LinearOperator:
     r"""
     Generalised derivative.
 
@@ -378,7 +378,7 @@ def GeneralisedDerivative(size: int, shape: Optional[tuple] = None, axis: int = 
 
 
 def FirstDirectionalDerivative(shape: tuple, directions: np.ndarray, step: Union[float, Tuple[float, ...]] = 1.,
-                               edge: bool = True, dtype: str = 'float64',
+                               edge: bool = True, dtype: str = 'float32',
                                kind: str = 'centered') -> PyLopLinearOperator:
     r"""
     First directional derivative.
@@ -487,7 +487,7 @@ def FirstDirectionalDerivative(shape: tuple, directions: np.ndarray, step: Union
 
 
 def SecondDirectionalDerivative(shape: tuple, directions: np.ndarray, step: Union[float, Tuple[float, ...]] = 1.,
-                                edge: bool = True, dtype: str = 'float64'):
+                                edge: bool = True, dtype: str = 'float32'):
     r"""
     Second directional derivative.
 
@@ -774,7 +774,7 @@ def DirectionalLaplacian(second_directional_derivatives: List[SecondDirectionalD
     return directional_laplacian
 
 
-def Gradient(shape: tuple, step: Union[tuple, float] = 1., edge: bool = True, dtype: str = 'float64',
+def Gradient(shape: tuple, step: Union[tuple, float] = 1., edge: bool = True, dtype: str = 'float32',
              kind: str = 'centered') -> PyLopLinearOperator:
     r"""
     Gradient.
@@ -883,7 +883,7 @@ def Gradient(shape: tuple, step: Union[tuple, float] = 1., edge: bool = True, dt
 
 
 def Laplacian(shape: tuple, weights: Tuple[float] = (1, 1), step: Union[tuple, float] = 1., edge: bool = True,
-              dtype: str = 'float64') -> PyLopLinearOperator:
+              dtype: str = 'float32') -> PyLopLinearOperator:
     r"""
     Laplacian.
 
@@ -958,7 +958,7 @@ def Laplacian(shape: tuple, weights: Tuple[float] = (1, 1), step: Union[tuple, f
 
 
 def GeneralisedLaplacian(shape: Optional[tuple] = None, step: Union[tuple, float] = 1., edge: bool = True,
-                         dtype: str = 'float64', kind='iterated', **kwargs) -> LinearOperator:
+                         dtype: str = 'float32', kind='iterated', **kwargs) -> LinearOperator:
     r"""
     Generalised Laplacian operator.
 
@@ -1069,7 +1069,7 @@ def GeneralisedLaplacian(shape: Optional[tuple] = None, step: Union[tuple, float
 
 
 def Integration1D(size: int, shape: Optional[tuple] = None, axis: int = 0, step: float = 1.,
-                  dtype='float64') -> PyLopLinearOperator:
+                  dtype='float32') -> PyLopLinearOperator:
     r"""
     1D integral/cumsum operator.
 

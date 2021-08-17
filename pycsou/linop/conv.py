@@ -12,14 +12,14 @@ Many of the linear operator provided in this module are derived from linear oper
 
 import numpy as np
 import numpy.typing as npt
-import pylops.signalprocessing as pyconv
 import pylops
+import pylops.signalprocessing as pyconv
 from typing import Optional, Union
 from pycsou.linop.base import PyLopLinearOperator, SparseLinearOperator
 
 
 def Convolve1D(size: int, filter: npt.ArrayLike, reshape_dims: Optional[tuple] = None, axis: int = 0,
-               dtype: type = 'float64', method: Optional[str] = None) -> PyLopLinearOperator:
+               dtype: type = 'float32', method: Optional[str] = None) -> PyLopLinearOperator:
     r"""
     1D convolution operator.
 
@@ -165,7 +165,7 @@ def Convolve1D(size: int, filter: npt.ArrayLike, reshape_dims: Optional[tuple] =
     return PyLopLinearOperator(PyLop)
 
 
-def Convolve2D(size: int, filter: npt.ArrayLike, shape: tuple, dtype: type = 'float64',
+def Convolve2D(size: int, filter: npt.ArrayLike, shape: tuple, dtype: type = 'float32',
                method: str = 'fft') -> PyLopLinearOperator:
     r"""
     2D convolution operator.
@@ -296,7 +296,7 @@ def Convolve2D(size: int, filter: npt.ArrayLike, shape: tuple, dtype: type = 'fl
     return PyLopLinearOperator(PyLop)
 
 
-def MovingAverage1D(window_size: int, shape: tuple, axis: int = 0, dtype='float64'):
+def MovingAverage1D(window_size: int, shape: tuple, axis: int = 0, dtype='float32'):
     r"""
     1D moving average.
 
@@ -360,7 +360,7 @@ def MovingAverage1D(window_size: int, shape: tuple, axis: int = 0, dtype='float6
     return PyLopLinearOperator(PyLop)
 
 
-def MovingAverage2D(window_shape: Union[tuple, list], shape: tuple, dtype='float64'):
+def MovingAverage2D(window_shape: Union[tuple, list], shape: tuple, dtype='float32'):
     r"""
     2D moving average.
 

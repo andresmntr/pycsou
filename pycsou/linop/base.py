@@ -624,7 +624,7 @@ class NullOperator(LinearOperator):
     Null operator.
     """
 
-    def __init__(self, shape: Tuple[int, int], dtype: Optional[type] = np.float64, xp: Optional[types.ModuleType] = np):
+    def __init__(self, shape: Tuple[int, int], dtype: Optional[type] = np.float32, xp: Optional[types.ModuleType] = np):
         super(NullOperator, self).__init__(shape=shape, dtype=dtype,
                                            is_explicit=False, is_dense=False, is_sparse=False, is_dask=False,
                                            is_symmetric=True if (shape[0] == shape[1]) else False)

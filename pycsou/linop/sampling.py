@@ -23,7 +23,7 @@ import joblib as job
 
 
 def SubSampling(size: int, sampling_indices: Union[np.ndarray, list], shape: Optional[tuple] = None, axis: int = 0,
-                dtype: str = 'float64', inplace: bool = True):
+                dtype: str = 'float32', inplace: bool = True):
     r"""
     Subsampling operator.
 
@@ -163,7 +163,7 @@ class Masking(LinearOperator):
     :py:class:`~pycsou.linop.sampling.SubSampling`, :py:class:`~pycsou.linop.sampling.Downsampling`
     """
 
-    def __init__(self, size: int, sampling_bool: Union[np.ndarray, list], dtype: type = np.float64):
+    def __init__(self, size: int, sampling_bool: Union[np.ndarray, list], dtype: type = np.float32):
         r"""
 
         Parameters
@@ -299,7 +299,7 @@ class DownSampling(Masking):
     """
 
     def __init__(self, size: int, downsampling_factor: Union[int, tuple, list], shape: Optional[tuple] = None,
-                 axis: Optional[int] = None, dtype: type = np.float64):
+                 axis: Optional[int] = None, dtype: type = np.float32):
         """
 
         Parameters
@@ -468,7 +468,7 @@ class Pooling(LinearOperator):
     """
 
     def __init__(self, shape: tuple, block_size: Union[tuple, list], pooling_func: str = 'mean',
-                 dtype: type = np.float64):
+                 dtype: type = np.float32):
         """
 
         Parameters
@@ -639,7 +639,7 @@ class NNSampling(LinearOperator):
     :py:class:`~pycsou.linop.sampling.GeneralisedVandermonde`
     """
 
-    def __init__(self, samples: np.ndarray, grid: np.ndarray, dtype: type = np.float64):
+    def __init__(self, samples: np.ndarray, grid: np.ndarray, dtype: type = np.float32):
         """
 
         Parameters
@@ -737,7 +737,7 @@ class GeneralisedVandermonde(DenseLinearOperator):
     :py:class:`~pycsou.linop.sampling.MappedDistanceMatrix`
     """
 
-    def __init__(self, samples: np.ndarray, funcs: List[Callable], dtype: type = np.float64):
+    def __init__(self, samples: np.ndarray, funcs: List[Callable], dtype: type = np.float32):
         """
 
         Parameters
@@ -898,7 +898,7 @@ class MappedDistanceMatrix(ExplicitLinearOperator):
     """
 
     def __init__(self, samples1: np.ndarray, function: Callable, samples2: Optional[np.ndarray] = None,
-                 mode: str = 'radial', max_distance: Optional[np.float] = None, dtype: type = np.float64,
+                 mode: str = 'radial', max_distance: Optional[np.float] = None, dtype: type = np.float32,
                  chunks: Union[str, int, tuple, None] = 'auto', operator_type: str = 'dask', verbose: bool = True,
                  n_jobs: int = -1, joblib_backend: str = 'loky', ord: float = 2., eps: float = 0):
         r"""

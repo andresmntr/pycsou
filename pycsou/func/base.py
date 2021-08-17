@@ -126,7 +126,7 @@ class ExplicitLinearFunctional(LinearFunctional):
     Base class for linear functionals.
     """
 
-    def __init__(self, vec: np.ndarray, dtype: type = np.float64):
+    def __init__(self, vec: np.ndarray, dtype: type = np.float32):
         self.vec = vec.flatten().astype(dtype)
         super(ExplicitLinearFunctional, self).__init__(dim=vec.size, dtype=dtype, is_explicit=True)
 

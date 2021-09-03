@@ -9,14 +9,16 @@ Interface classes for constructing functionals.
 """
 
 from numbers import Number
-from typing import Union, Callable
+from typing import Union, Callable, Optional
 
 import numpy as np
+import numpy.typing as npt
 import joblib as job
+import types
 
 from pycsou.core.functional import ProximableFunctional, DifferentiableFunctional, LinearFunctional
 from pycsou.core.map import MapHStack, DiffMapHStack
-
+from pycsou.util import infer_array_module
 
 class ProxFuncHStack(ProximableFunctional, MapHStack):
     r"""
@@ -76,9 +78,10 @@ class ProxFuncHStack(ProximableFunctional, MapHStack):
         self.proxfuncs = self.maps
         ProximableFunctional.__init__(self, dim=self.shape[1], data=None, is_differentiable=self.is_differentiable,
                                       is_linear=self.is_linear)
-
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
-        x_split = np.split(x, self.sections)
+    
+    @infer_array_module(decorated_object_type='method')
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number, _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        x_split = _xp.split(x, self.sections)
         if self.n_jobs == 1:
             result = [func.prox(x_split[i], tau) for i, func in enumerate(self.proxfuncs)]
         else:
@@ -86,7 +89,7 @@ class ProxFuncHStack(ProximableFunctional, MapHStack):
                 result = parallel(job.delayed(func.prox)
                                   (x_split[i], tau)
                                   for i, func in enumerate(self.proxfuncs))
-        return np.concatenate(result, axis=0)
+        return _xp.concatenate(result, axis=0)
 
 
 class DiffFuncHStack(DifferentiableFunctional, DiffMapHStack):
@@ -108,8 +111,9 @@ class DiffFuncHStack(DifferentiableFunctional, DiffMapHStack):
         DifferentiableFunctional.__init__(self, dim=self.shape[1], data=None, is_linear=self.is_linear,
                                           lipschitz_cst=self.lipschitz_cst, diff_lipschitz_cst=self.diff_lipschitz_cst)
 
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
-        arg_split = np.split(arg, self.sections)
+    @infer_array_module(decorated_object_type='method')
+    def jacobianT(self, arg: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        arg_split = _xp.split(arg, self.sections)
         if self.n_jobs == 1:
             jacobianT_list = [difffunc.jacobianT(arg_split[i])
                               for i, difffunc in enumerate(self.maps)]
@@ -117,7 +121,7 @@ class DiffFuncHStack(DifferentiableFunctional, DiffMapHStack):
             with job.Parallel(backend=self.joblib_backend, n_jobs=self.n_jobs, verbose=False) as parallel:
                 jacobianT_list = parallel(job.delayed(difffunc.jacobianT)(arg_split[i])
                                           for i, difffunc in enumerate(self.maps))
-        result = np.concatenate(jacobianT_list, axis=0)
+        result = _xp.concatenate(jacobianT_list, axis=0)
         return result
 
 
@@ -126,12 +130,13 @@ class ExplicitLinearFunctional(LinearFunctional):
     Base class for linear functionals.
     """
 
-    def __init__(self, vec: np.ndarray, dtype: type = np.float32):
+    def __init__(self, vec: npt.ArrayLike, dtype: type = np.float32):
         self.vec = vec.flatten().astype(dtype)
         super(ExplicitLinearFunctional, self).__init__(dim=vec.size, dtype=dtype, is_explicit=True)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return np.dot(self.vec, x.flatten())
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: npt.ArrayLike, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
+        return _xp.dot(self.vec, x.flatten())
 
     def adjoint(self, y: Number) -> Number:
         return y * self.vec
@@ -161,10 +166,10 @@ class IndicatorFunctional(ProximableFunctional):
         self.condition_func = condition_func
         self.projection_func = projection_func
 
-    def __call__(self, x: Union[Number, np.ndarray], **kwargs) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike], **kwargs) -> Number:
         return 0 if self.condition_func(x, **kwargs) else np.infty
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number, **kwargs) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number, **kwargs) -> Union[Number, npt.ArrayLike]:
         return self.projection_func(x, **kwargs)
 
 
@@ -184,11 +189,12 @@ class NullDifferentiableFunctional(DifferentiableFunctional):
         super(NullDifferentiableFunctional, self).__init__(dim=dim, is_linear=True, lipschitz_cst=0,
                                                            diff_lipschitz_cst=0)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return 0
 
-    def jacobianT(self, arg: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
-        return np.zeros(shape=self.dim)
+    @infer_array_module(decorated_object_type='method')
+    def jacobianT(self, arg: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        return _xp.zeros(shape=self.dim)
 
 
 class NullProximableFunctional(ProximableFunctional):
@@ -205,10 +211,10 @@ class NullProximableFunctional(ProximableFunctional):
         """
         super(NullProximableFunctional, self).__init__(dim=dim, is_linear=True)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return 0
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         return x
 
 
@@ -226,7 +232,7 @@ class LpNorm(ProximableFunctional):
         ----------
         dim: int
             Dimension of the functional's domain.
-        proj_lq_ball: Callable[x: np.ndarray, radius: float]
+        proj_lq_ball: Callable[x: npt.ArrayLike, radius: float]
             Projection onto the :math:`\ell_q`-ball where :math:`1/p+1/q=1.`
 
         See Also
@@ -236,5 +242,5 @@ class LpNorm(ProximableFunctional):
         super(LpNorm, self).__init__(dim=dim, data=None, is_differentiable=False, is_linear=False)
         self.proj_lq_ball = proj_lq_ball
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         return x - tau * self.proj_lq_ball(x / tau, radius=1)

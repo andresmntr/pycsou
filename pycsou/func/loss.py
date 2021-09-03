@@ -7,17 +7,19 @@
 r"""
 Repository of common loss functionals.
 """
+import numpy as np
+import numpy.typing as npt
+import types
 
+from pycsou.util.backend import infer_array_module, infer_module_from_array
 from pycsou.core.functional import DifferentiableFunctional, ProximableFunctional, ProxFuncPreComp
 from pycsou.func.base import IndicatorFunctional
 from pycsou.linop.base import DenseLinearOperator
 from pycsou.func.penalty import L2Norm, L1Norm, LInftyNorm, L2Ball, L1Ball, LInftyBall, SquaredL1Norm, SquaredL2Norm
-from typing import Union
+from typing import Union, Optional
 from numbers import Number
-import numpy as np
 
-
-def ProximableLoss(func: ProximableFunctional, data: Union[Number, np.ndarray]) -> ProximableFunctional:
+def ProximableLoss(func: ProximableFunctional, data: Union[Number, npt.ArrayLike]) -> ProximableFunctional:
     r"""
     Constructor of proximable loss functions.
 
@@ -29,7 +31,7 @@ def ProximableLoss(func: ProximableFunctional, data: Union[Number, np.ndarray]) 
     ----------
     func: ProximableFunctional
         Some proximable functional :math:`\varphi:\mathbb{R}^N\rightarrow \mathbb{R}`.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}\in\mathbb{R}^N`.
 
     Returns
@@ -69,7 +71,7 @@ def ProximableLoss(func: ProximableFunctional, data: Union[Number, np.ndarray]) 
     return ProxFuncPreComp(func, scale=1, shift=-data)
 
 
-def DifferentiableLoss(func: DifferentiableFunctional, data: Union[Number, np.ndarray]) -> DifferentiableFunctional:
+def DifferentiableLoss(func: DifferentiableFunctional, data: Union[Number, npt.ArrayLike]) -> DifferentiableFunctional:
     r"""
     Constructor of proximable loss functions.
 
@@ -81,7 +83,7 @@ def DifferentiableLoss(func: DifferentiableFunctional, data: Union[Number, np.nd
     ----------
     func: DifferentiableFunctional
         Some differentiable functional :math:`\varphi:\mathbb{R}^N\rightarrow \mathbb{R}`.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}\in\mathbb{R}^N`.
 
     Returns
@@ -120,7 +122,7 @@ def DifferentiableLoss(func: DifferentiableFunctional, data: Union[Number, np.nd
     return func.shifter(shift=-data)
 
 
-def L2Loss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
+def L2Loss(dim: int, data: Union[Number, npt.ArrayLike]) -> ProximableFunctional:
     r"""
     :math:`\ell_2` loss functional, :math:`F(\mathbf{y},\mathbf{x}):=\|\mathbf{y}-\mathbf{x}\|_2`.
 
@@ -128,7 +130,7 @@ def L2Loss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
 
     Returns
@@ -162,7 +164,7 @@ def L2Loss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
     return ProximableLoss(L2_norm, data=data)
 
 
-def SquaredL2Loss(dim: int, data: Union[Number, np.ndarray]) -> DifferentiableFunctional:
+def SquaredL2Loss(dim: int, data: Union[Number, npt.ArrayLike]) -> DifferentiableFunctional:
     r"""
     :math:`\ell^2_2` loss functional, :math:`F(\mathbf{y},\mathbf{x}):=\|\mathbf{y}-\mathbf{x}\|^2_2`.
 
@@ -170,7 +172,7 @@ def SquaredL2Loss(dim: int, data: Union[Number, np.ndarray]) -> DifferentiableFu
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
 
     Returns
@@ -219,7 +221,7 @@ def SquaredL2Loss(dim: int, data: Union[Number, np.ndarray]) -> DifferentiableFu
     return DifferentiableLoss(squared_L2_norm, data=data)
 
 
-def L2BallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) -> ProximableFunctional:
+def L2BallLoss(dim: int, data: Union[Number, npt.ArrayLike], radius: Number = 1) -> ProximableFunctional:
     r"""
     :math:`\ell_2`-ball loss functional, :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{y}-\mathbf{x}\|_2\leq \text{radius}\}`.
 
@@ -236,7 +238,7 @@ def L2BallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) ->
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
     radius: Number
         Radius of the ball.
@@ -277,7 +279,7 @@ def L2BallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) ->
     return ProximableLoss(L2_ball, data=data)
 
 
-def L1Loss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
+def L1Loss(dim: int, data: Union[Number, npt.ArrayLike]) -> ProximableFunctional:
     r"""
     :math:`\ell_1` loss functional, :math:`F(\mathbf{y},\mathbf{x}):=\|\mathbf{y}-\mathbf{x}\|_1`.
 
@@ -285,7 +287,7 @@ def L1Loss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
 
     Returns
@@ -326,7 +328,7 @@ def L1Loss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
     return ProximableLoss(L1_norm, data=data)
 
 
-def SquaredL1Loss(dim: int, data: Union[Number, np.ndarray], prox_computation='sort') -> ProximableFunctional:
+def SquaredL1Loss(dim: int, data: Union[Number, npt.ArrayLike], prox_computation='sort') -> ProximableFunctional:
     r"""
     :math:`\ell^2_1` loss functional, :math:`F(\mathbf{y},\mathbf{x}):=\|\mathbf{y}-\mathbf{x}\|^2_1`.
 
@@ -334,7 +336,7 @@ def SquaredL1Loss(dim: int, data: Union[Number, np.ndarray], prox_computation='s
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
 
     Returns
@@ -368,7 +370,7 @@ def SquaredL1Loss(dim: int, data: Union[Number, np.ndarray], prox_computation='s
     return ProximableLoss(squared_L1_norm, data=data)
 
 
-def L1BallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) -> ProximableFunctional:
+def L1BallLoss(dim: int, data: Union[Number, npt.ArrayLike], radius: Number = 1) -> ProximableFunctional:
     r"""
     :math:`\ell_1`-ball loss functional, :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{y}-\mathbf{x}\|_1\leq \text{radius}\}`.
 
@@ -385,7 +387,7 @@ def L1BallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) ->
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
     radius: Number
         Radius of the ball.
@@ -426,7 +428,7 @@ def L1BallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) ->
     return ProximableLoss(L1_ball, data=data)
 
 
-def LInftyLoss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctional:
+def LInftyLoss(dim: int, data: Union[Number, npt.ArrayLike]) -> ProximableFunctional:
     r"""
     :math:`\ell_\infty` loss functional, :math:`F(\mathbf{y},\mathbf{x}):=\|\mathbf{y}-\mathbf{x}\|_\infty`.
 
@@ -434,7 +436,7 @@ def LInftyLoss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctiona
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
 
     Returns
@@ -475,7 +477,7 @@ def LInftyLoss(dim: int, data: Union[Number, np.ndarray]) -> ProximableFunctiona
     return ProximableLoss(LInfty_norm, data=data)
 
 
-def LInftyBallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1) -> ProximableFunctional:
+def LInftyBallLoss(dim: int, data: Union[Number, npt.ArrayLike], radius: Number = 1) -> ProximableFunctional:
     r"""
     :math:`\ell_\infty`-ball loss functional, :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{y}-\mathbf{x}\|_\infty\leq \text{radius}\}`.
 
@@ -492,7 +494,7 @@ def LInftyBallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}`.
     radius: Number
         Radius of the ball.
@@ -533,7 +535,8 @@ def LInftyBallLoss(dim: int, data: Union[Number, np.ndarray], radius: Number = 1
     return ProximableLoss(LInfty_ball, data=data)
 
 
-def ConsistencyLoss(dim: int, data: Union[Number, np.ndarray]):
+# @infer_array_module(decorated_object_type='function')
+def ConsistencyLoss(dim: int, data: Union[Number, npt.ArrayLike]):
     r"""
     Consistency loss functional :math:`\mathbf{y}=\mathbf{x}`.
 
@@ -550,7 +553,7 @@ def ConsistencyLoss(dim: int, data: Union[Number, np.ndarray]):
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}` to match.
 
     Returns
@@ -582,7 +585,8 @@ def ConsistencyLoss(dim: int, data: Union[Number, np.ndarray]):
     Such a functional is mainly useful in the context of noiseless data as it can lead to serious overfitting issues in the presence of noise.
 
     """
-    condition_func = lambda x: np.allclose(x, data)
+    _xp = infer_module_from_array(data)
+    condition_func = lambda x: _xp.allclose(x, data)
     projection_func = lambda x: data
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -611,7 +615,7 @@ class KLDivergence(ProximableFunctional):
     ----------
     dim: int
         Dimension of the domain.
-    data: Union[Number, np.ndarray]
+    data: Union[Number, npt.ArrayLike]
         Data vector :math:`\mathbf{y}` to match.
 
     Returns
@@ -652,34 +656,36 @@ class KLDivergence(ProximableFunctional):
     :py:class:`~pycsou.func.penalty.ShannonEntropy`, :py:class:`~pycsou.func.penalty.LogBarrier`
     """
 
-    def __init__(self, dim: int, data: Union[Number, np.ndarray]):
+    def __init__(self, dim: int, data: Union[Number, npt.ArrayLike]):
         super(KLDivergence, self).__init__(dim=dim, data=None, is_differentiable=False, is_linear=False)
         self.data = data
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Number:
         z = 0 * x + np.infty
         z[(x > 0) * (self.data > 0)] = self.data[(x > 0) * (self.data > 0)] * np.log(
             self.data[(x > 0) * (self.data > 0)] / x[(x > 0) * (self.data > 0)])
         z[(x == 0) * (self.data >= 0)] = 0
-        return np.sum(z - self.data + x)
+        return _xp.sum(z - self.data + x)
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    @infer_array_module(decorated_object_type='method')
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number, _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
         r"""
         Proximal operator of the KL-divergence functional (see [FuncSphere]_ Section 5 of Chapter 7).
 
         Parameters
         ----------
-        x: Union[Number, np.ndarray]
+        x: Union[Number, npt.ArrayLike]
             Input.
         tau: Number
             Scaling constant.
 
         Returns
         -------
-        Union[Number, np.ndarray]
+        Union[Number, npt.ArrayLike]
             Proximal point of x.
         """
-        return (x - tau + np.sqrt((x - tau) ** 2 + 4 * tau * self.data)) / 2
+        return (x - tau + _xp.sqrt((x - tau) ** 2 + 4 * tau * self.data)) / 2
 
 
 if __name__ == "__main__":

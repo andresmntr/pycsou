@@ -8,7 +8,12 @@
 r"""
 Repository of common penalty functionals.
 """
+import numpy as np
+import numpy.typing as npt
+import scipy.optimize as sciop
+import types
 
+from pycsou.util import infer_array_module, infer_module_from_array
 from pycsou.core.functional import DifferentiableFunctional, ProximableFunctional
 from pycsou.func.base import IndicatorFunctional, LpNorm
 from pycsou.linop.base import DenseLinearOperator
@@ -16,8 +21,6 @@ from pycsou.core import LinearOperator
 from pycsou.math.prox import soft, proj_l1_ball, proj_l2_ball, proj_linfty_ball, proj_nonnegative_orthant, proj_segment
 from typing import Union, Optional
 from numbers import Number
-import numpy as np
-import scipy.optimize as sciop
 
 
 class L2Norm(LpNorm):
@@ -66,11 +69,12 @@ class L2Norm(LpNorm):
         """
         super(L2Norm, self).__init__(dim=dim, proj_lq_ball=proj_l2_ball)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
-        return np.linalg.norm(x)
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Number:
+        return _xp.linalg.norm(x)
 
 
-class SquaredL2Norm(DifferentiableFunctional):
+class  SquaredL2Norm(DifferentiableFunctional):
     r"""
     :math:`\ell^2_2`-norm, :math:`\Vert\mathbf{x}\Vert^2_2:=\sum_{i=1}^N |x_i|^2`.
 
@@ -123,15 +127,16 @@ class SquaredL2Norm(DifferentiableFunctional):
         super(SquaredL2Norm, self).__init__(dim=dim, data=None, is_linear=False, lipschitz_cst=np.infty,
                                             diff_lipschitz_cst=2)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    # @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Number:
         return np.linalg.norm(x) ** 2
 
-    def jacobianT(self, x: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    def jacobianT(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, npt.ArrayLike]:
         r"""Gradient of the squared L2 norm at x."""
         return 2 * x
 
 
-def L2Ball(dim: int, radius: Number) -> IndicatorFunctional:
+def L2Ball(dim: int, radius: Number, _xp: types.ModuleType = np) -> IndicatorFunctional:
     r"""
     Indicator function of the :math:`\ell_2`-ball :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{x}\|_2\leq \text{radius}\}`
 
@@ -186,7 +191,7 @@ def L2Ball(dim: int, radius: Number) -> IndicatorFunctional:
     --------
     :py:func:`~pycsou.func.loss.L2BallLoss`, :py:class:`~pycsou.func.penalty.L2Norm`, py:class:`pycsou.class.penalty.SquaredL2Norm`.
     """
-    condition_func = lambda x: np.linalg.norm(x) <= radius
+    condition_func = lambda x: _xp.linalg.norm(x) <= radius
     projection_func = lambda x: proj_l2_ball(x, radius=radius)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -237,10 +242,10 @@ class L1Norm(LpNorm):
         """
         super(L1Norm, self).__init__(dim=dim, proj_lq_ball=proj_linfty_ball)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return np.sum(np.abs(x))
 
-    def soft(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def soft(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         r"""Soft thresholding operator (see :py:func:`~pycsou.math.prox.soft` for a definition)."""
         return soft(x=x, tau=tau)
 
@@ -290,33 +295,34 @@ class SquaredL1Norm(ProximableFunctional):
         self.prox_computation = prox_computation
         super(SquaredL1Norm, self).__init__(dim=dim, data=None, is_differentiable=False, is_linear=False)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         return np.sum(np.abs(x)) ** 2
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    @infer_array_module(decorated_object_type='method')
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number, _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
         r"""
         Proximal operator, see :py:class:`pycsou.core.functional.ProximableFunctional` for a detailed description.
         """
         if self.prox_computation == 'root':
-            if np.linalg.norm(x) > 0:
-                mu_max = np.max(np.abs(x) ** 2) / (4 * tau)
+            if _xp.linalg.norm(x) > 0:
+                mu_max = _xp.max(_xp.abs(x) ** 2) / (4 * tau)
                 mu_min = 1e-12
-                func = lambda mu: np.sum(np.clip(np.abs(x) * np.sqrt(tau / mu) - 2 * tau, a_min=0, a_max=None)) - 1
+                func = lambda mu: _xp.sum(_xp.clip(_xp.abs(x) * _xp.sqrt(tau / mu) - 2 * tau, a_min=0, a_max=None)) - 1
                 mu_star = sciop.brentq(func, a=mu_min, b=mu_max)
-                lambda_ = np.clip(np.abs(x) * np.sqrt(tau / mu_star) - 2 * tau, a_min=0, a_max=None)
+                lambda_ = _xp.clip(_xp.abs(x) * _xp.sqrt(tau / mu_star) - 2 * tau, a_min=0, a_max=None)
                 return lambda_ * x / (lambda_ + 2 * tau)
             else:
                 return x
         elif self.prox_computation == 'sort':
-            y = np.sort(np.abs(x))[::-1]
-            cumsum_y = np.cumsum(y)
-            test_array = y - (2 * tau / (1 + (np.arange(y.size) + 1) * 2 * tau)) * cumsum_y
-            max_nzi = np.max(np.nonzero(test_array > 0))
+            y = _xp.sort(_xp.abs(x))[::-1]
+            cumsum_y = _xp.cumsum(y)
+            test_array = y - (2 * tau / (1 + (_xp.arange(y.size) + 1) * 2 * tau)) * cumsum_y
+            max_nzi = _xp.max(_xp.asarray(_xp.nonzero(test_array > 0)))
             threshold = (2 * tau / (1 + (max_nzi + 1) * 2 * tau)) * cumsum_y[max_nzi]
             return soft(x, threshold)
 
 
-def L1Ball(dim: int, radius: Number) -> IndicatorFunctional:
+def L1Ball(dim: int, radius: Number, _xp: types.ModuleType = np) -> IndicatorFunctional:
     r"""
     Indicator function of the :math:`\ell_1`-ball :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{x}\|_1\leq \text{radius}\}`
 
@@ -372,7 +378,7 @@ def L1Ball(dim: int, radius: Number) -> IndicatorFunctional:
     :py:func:`~pycsou.func.loss.L1BallLoss`, :py:class:`~pycsou.func.penalty.L1Norm`, py:class:`pycsou.func.penalty.SquaredL1Norm`.
     """
 
-    condition_func = lambda x: np.sum(np.abs(x)) <= radius
+    condition_func = lambda x: _xp.sum(_xp.abs(x)) <= radius
     projection_func = lambda x: proj_l1_ball(x, radius=radius)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -413,11 +419,12 @@ class LInftyNorm(LpNorm):
     def __init__(self, dim: int):
         super(LInftyNorm, self).__init__(dim=dim, proj_lq_ball=proj_l1_ball)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
-        return np.max(np.abs(x))
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Number:
+        return _xp.max(_xp.abs(x))
 
 
-def LInftyBall(dim: int, radius: Number) -> IndicatorFunctional:
+def LInftyBall(dim: int, radius: Number, _xp: types.ModuleType = np) -> IndicatorFunctional:
     r"""
     Indicator function of the :math:`\ell_\infty`-ball :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{x}\|_\infty\leq \text{radius}\}`
 
@@ -472,7 +479,7 @@ def LInftyBall(dim: int, radius: Number) -> IndicatorFunctional:
     --------
     :py:func:`~pycsou.func.loss.LInftyBallLoss`, :py:class:`~pycsou.func.penalty.LInftyNorm`.
     """
-    condition_func = lambda x: np.max(np.abs(x)) <= radius
+    condition_func = lambda x: _xp.max(_xp.abs(x)) <= radius
     projection_func = lambda x: proj_linfty_ball(x, radius=radius)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -522,20 +529,23 @@ class L21Norm(ProximableFunctional):
     :py:func:`~pycsou.func.loss.L2Norm`, :py:class:`~pycsou.func.penalty.SquaredL2Norm`, :py:func:`~pycsou.func.penalty.L1Norm`.
     """
 
-    def __new__(cls, dim: int, groups: Union[np.ndarray, None] = None):
-        if np.all(groups == None) or np.unique(groups).size == dim:
+    def __new__(cls, dim: int, groups: Optional[npt.ArrayLike] = None):
+        _xp = infer_module_from_array(groups)
+        if np.all(_xp.isnan(groups)) or (np.unique(groups).size == dim):
+        #if _xp.all(_xp.asarray(groups == None)) or _xp.unique(groups).size == dim:
+        #if _xp.all(_xp.asarray(groups == None)).get() or (_xp.unique(groups).size.item() == dim).get():
             return L1Norm(dim=dim)
-        if np.unique(groups).size == 1:
+        if _xp.unique(groups).size == 1:
             return L2Norm(dim=dim)
         return super(L21Norm, cls).__new__(cls)
 
-    def __init__(self, dim: int, groups: np.ndarray):
+    def __init__(self, dim: int, groups: npt.ArrayLike):
         r"""
         Parameters
         ----------
         dim : int
             Dimension of the domain.
-        groups : np.ndarray, optional, defaults to None
+        groups : npt.ArrayLike, optional, defaults to None
             Numerical variable of the same size as :math:`x`, where different
             groups are distinguished by different values. If each element of `x`
             belongs to a different group, an L1Norm is returned. If all elements
@@ -545,19 +555,22 @@ class L21Norm(ProximableFunctional):
         self.groups_idxs = np.unique(self.groups)
         super(L21Norm, self).__init__(dim=dim, data=None, is_differentiable=False, is_linear=False)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
-        return np.sum(np.array([self.__L2_norm_in_group(x, group_id) for group_id in self.groups_idxs]))
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Number:
+        return _xp.sum(_xp.array([self.__L2_norm_in_group(x, group_id) for group_id in self.groups_idxs]))
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
-        y = np.empty_like(x)
-        group_norms = np.array([self.__L2_norm_in_group(x, group_id) for group_id in self.groups_idxs])
-        normalizations = np.clip(1 - tau / group_norms, a_min=0, a_max=None)
+    @infer_array_module(decorated_object_type='method')
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number, _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        y = _xp.empty_like(x)
+        group_norms = _xp.array([self.__L2_norm_in_group(x, group_id) for group_id in self.groups_idxs])
+        normalizations = _xp.clip(1 - tau / group_norms, a_min=0, a_max=None)
         for idx, group_idx in enumerate(self.groups_idxs):
             y[self.groups == group_idx] = normalizations[idx] * x[self.groups == group_idx]
         return y
-
-    def __L2_norm_in_group(self, x: np.ndarray, group_idx: Number) -> Number:
-        return np.linalg.norm(x[self.groups == group_idx])
+    
+    @infer_array_module(decorated_object_type='method')
+    def __L2_norm_in_group(self, x: npt.ArrayLike, group_idx: Number, _xp: Optional[types.ModuleType] = None) -> Number:
+        return _xp.linalg.norm(x[self.groups == group_idx])
 
 
 def NonNegativeOrthant(dim: int) -> IndicatorFunctional:
@@ -600,14 +613,14 @@ def NonNegativeOrthant(dim: int) -> IndicatorFunctional:
        (inf, 0)
        >>> np.allclose(func.prox(x1,tau=1), proj_nonnegative_orthant(x1))
        True
-       >>> np.alltrue(func.prox(x1,tau=1) >= 0)
+       >>> np.all(func.prox(x1,tau=1) >= 0)
        True
 
     See Also
     --------
     :py:func:`~pycsou.func.penalty.LogBarrier`.
     """
-    condition_func = lambda x: np.alltrue(x >= 0)
+    condition_func = lambda x: np.all(x >= 0)
     projection_func = lambda x: proj_nonnegative_orthant(x)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -663,7 +676,7 @@ def Segment(dim: int, a: Number = 0, b: Number = 1):
     --------
     :py:func:`~pycsou.func.penalty.RealLine`, :py:func:`~pycsou.func.penalty.ImagLine`.
     """
-    condition_func = lambda x: np.alltrue((x >= a) & (x <= b))
+    condition_func = lambda x: np.all((x >= a) & (x <= b))
     projection_func = lambda x: proj_segment(x, a=a, b=b)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -712,7 +725,7 @@ def RealLine(dim: int):
     --------
     :py:func:`~pycsou.func.penalty.NonNegativeOrthant`, :py:func:`~pycsou.func.penalty.ImagLine`.
     """
-    condition_func = lambda x: np.alltrue(np.isreal(x))
+    condition_func = lambda x: np.all(np.isreal(x))
     projection_func = lambda x: np.real(x)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -762,7 +775,7 @@ def ImagLine(dim: int):
     --------
     :py:func:`~pycsou.func.penalty.NonNegativeOrthant`, :py:func:`~pycsou.func.penalty.RealLine`.
     """
-    condition_func = lambda x: np.alltrue(np.real(x) == 0)
+    condition_func = lambda x: np.all(np.real(x) == 0)
     projection_func = lambda x: np.imag(x)
     return IndicatorFunctional(dim=dim, condition_func=condition_func, projection_func=projection_func)
 
@@ -816,25 +829,25 @@ class LogBarrier(ProximableFunctional):
         """
         super(LogBarrier, self).__init__(dim=dim, data=None, is_differentiable=False, is_linear=False)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         y = 0 * x - np.infty
         y[x > 0] = np.log(x[x > 0])
         return - y.sum()
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         r"""
         Proximal operator of the log barrier.
 
         Parameters
         ----------
-        x: Union[Number, np.ndarray]
+        x: Union[Number, npt.ArrayLike]
             Input.
         tau: Number
             Scaling constant.
 
         Returns
         -------
-        Union[Number, np.ndarray]
+        Union[Number, npt.ArrayLike]
             Proximal point of x.
         """
         return (x + np.sqrt(x ** 2 + 4 * tau)) / 2
@@ -896,30 +909,30 @@ class ShannonEntropy(ProximableFunctional):
         """
         super(ShannonEntropy, self).__init__(dim=dim, data=None, is_differentiable=False, is_linear=False)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         y = 0 * x + np.infty
         y[x == 0] = 0
         y[x > 0] = x[x > 0] * np.log(x[x > 0])
         return y.sum()
 
-    def prox(self, x: Union[Number, np.ndarray], tau: Number) -> Union[Number, np.ndarray]:
+    def prox(self, x: Union[Number, npt.ArrayLike], tau: Number) -> Union[Number, npt.ArrayLike]:
         r"""
         Proximal operator of the Shannon entropy functional.
 
         Parameters
         ----------
-        x: Union[Number, np.ndarray]
+        x: Union[Number, npt.ArrayLike]
             Input.
         tau: Number
             Scaling constant.
 
         Returns
         -------
-        Union[Number, np.ndarray]
+        Union[Number, npt.ArrayLike]
             Proximal point of x.
         """
         from scipy.special import lambertw
-        return np.real(tau * lambertw(np.exp(-1 + (x / tau)) / tau, k=0))
+        return np.real(tau * lambertw(np.exp(-1 + (x / tau)) / tau, k=0)) 
 
 
 class QuadraticForm(DifferentiableFunctional):
@@ -977,13 +990,13 @@ class QuadraticForm(DifferentiableFunctional):
         super(QuadraticForm, self).__init__(dim=dim, data=None, is_linear=False,
                                             diff_lipschitz_cst=diff_lipschitz_cst)
 
-    def __call__(self, x: Union[Number, np.ndarray]) -> Number:
+    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Number:
         if self.linop is None:
             return np.dot(x.conj(), x)
         else:
             return np.dot(x.conj(), self.linop * x)
 
-    def jacobianT(self, x: Union[Number, np.ndarray]) -> np.ndarray:
+    def jacobianT(self, x: Union[Number, npt.ArrayLike]) -> npt.ArrayLike:
         if self.linop is None:
             return 2 * x
         else:

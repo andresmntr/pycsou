@@ -8,13 +8,17 @@ r"""
 Common proximal/projection operators.
 """
 
+import types
 import numpy as np
-from typing import Union
-from numbers import Number
+import numpy.typing as npt
 import scipy.optimize as sciop
 
+from typing import Optional, Union
+from numbers import Number
+from pycsou.util import infer_array_module
 
-def sign(x: Union[np.ndarray, Number]) -> Union[np.ndarray, Number]:
+@infer_array_module(decorated_object_type='function')
+def sign(x: Union[npt.ArrayLike, Number], _xp: Optional[types.ModuleType] = None) -> Union[npt.ArrayLike, Number]:
     r"""
     Sign function.
 
@@ -30,12 +34,12 @@ def sign(x: Union[np.ndarray, Number]) -> Union[np.ndarray, Number]:
 
     Parameters
     ----------
-    x: Union[np.ndarray, Number]
+    x: Union[npt.ArrayLike, Number]
         Input array.
 
     Returns
     -------
-    Union[np.ndarray, Number]
+    Union[npt.ArrayLike, Number]
         An array whose entries are given by the signs of the entries of ``x``.
 
     Examples
@@ -58,13 +62,13 @@ def sign(x: Union[np.ndarray, Number]) -> Union[np.ndarray, Number]:
        True
 
     """
-    x = np.asarray(x)
-    y = np.asarray(0 * x)
-    y[np.abs(x) != 0] = np.conj(x[np.abs(x) != 0]) / np.abs(x[np.abs(x) != 0])
+    x = _xp.asarray(x)
+    y = _xp.asarray(0 * x)
+    y[_xp.abs(x) != 0] = _xp.conj(x[_xp.abs(x) != 0]) / _xp.abs(x[_xp.abs(x) != 0])
     return y
 
 
-def soft(x: Union[np.ndarray, Number], tau: Number) -> Union[np.ndarray, Number]:
+def soft(x: Union[npt.ArrayLike, Number], tau: Number) -> Union[npt.ArrayLike, Number]:
     r"""
     Soft thresholding operator.
 
@@ -79,14 +83,14 @@ def soft(x: Union[np.ndarray, Number], tau: Number) -> Union[np.ndarray, Number]
 
     Parameters
     ----------
-    x: Union[np.ndarray, Number]
+    x: Union[npt.ArrayLike, Number]
         Input array.
     tau: Number
         Threshold value.
 
     Returns
     -------
-    Union[np.ndarray, Number]
+    Union[npt.ArrayLike, Number]
         Array ``x`` with element-wise soft thresholded entries.
 
     Examples
@@ -114,20 +118,20 @@ def soft(x: Union[np.ndarray, Number], tau: Number) -> Union[np.ndarray, Number]
     return np.clip(np.abs(x) - tau, a_min=0, a_max=None) * sign(x)
 
 
-def proj_l1_ball(x: np.ndarray, radius: Number) -> np.ndarray:
+def proj_l1_ball(x: npt.ArrayLike, radius: Number) -> npt.ArrayLike:
     r"""
     Orthogonal projection onto the :math:`\ell_1`-ball :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{x}\|_1\leq \text{radius}\}`.
 
     Parameters
     ----------
-    x: np.ndarray
+    x: npt.ArrayLike
         Vector to be projected.
     radius: Number
         Radius of the :math:`\ell_1`-ball.
 
     Returns
     -------
-    np.ndarray
+    npt.ArrayLike
         Projection of ``x`` onto the :math:`\ell_1`-ball.
 
     Examples
@@ -163,21 +167,21 @@ def proj_l1_ball(x: np.ndarray, radius: Number) -> np.ndarray:
         mu_star = sciop.brentq(func, a=0, b=mu_max)
         return soft(x, mu_star)
 
-
-def proj_l2_ball(x: np.ndarray, radius: Number) -> np.ndarray:
+@infer_array_module(decorated_object_type='function')
+def proj_l2_ball(x: npt.ArrayLike, radius: Number, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
     r"""
     Orthogonal projection onto the :math:`\ell_2`-ball :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{x}\|_2\leq \text{radius}\}`.
 
     Parameters
     ----------
-    x: np.ndarray
+    x: npt.ArrayLike
         Vector to be projected.
     radius: Number
         Radius of the :math:`\ell_2`-ball.
 
     Returns
     -------
-    np.ndarray
+    npt.ArrayLike
         Projection of ``x`` onto the :math:`\ell_2`-ball.
 
     Examples
@@ -204,26 +208,26 @@ def proj_l2_ball(x: np.ndarray, radius: Number) -> np.ndarray:
     --------
     :py:func:`~pycsou.func.penalty.L2Ball`, :py:func:`~pycsou.math.prox.proj_l1_ball`, :py:func:`~pycsou.math.prox.proj_linfty_ball`.
     """
-    if np.linalg.norm(x) <= radius:
+    if _xp.linalg.norm(x) <= radius:
         return x
     else:
-        return radius * x / np.linalg.norm(x)
+        return radius * x / _xp.linalg.norm(x)
 
 
-def proj_linfty_ball(x: np.ndarray, radius: Number) -> np.ndarray:
+def proj_linfty_ball(x: npt.ArrayLike, radius: Number) -> npt.ArrayLike:
     r"""
     Orthogonal projection onto the :math:`\ell_\infty`-ball :math:`\{\mathbf{x}\in\mathbb{R}^N: \|\mathbf{x}\|_\infty\leq \text{radius}\}`.
 
     Parameters
     ----------
-    x: np.ndarray
+    x: npt.ArrayLike
         Vector to be projected.
     radius: Number
         Radius of the :math:`\ell_\infty`-ball.
 
     Returns
     -------
-    np.ndarray
+    npt.ArrayLike
         Projection of ``x`` onto the :math:`\ell_\infty`-ball.
 
     Examples
@@ -256,13 +260,13 @@ def proj_linfty_ball(x: np.ndarray, radius: Number) -> np.ndarray:
     return y
 
 
-def proj_nonnegative_orthant(x: np.ndarray) -> np.ndarray:
+def proj_nonnegative_orthant(x: npt.ArrayLike) -> npt.ArrayLike:
     r"""
     Orthogonal projection on the non negative orthant.
 
     Parameters
     ----------
-    x: np.ndarray
+    x: npt.ArrayLike
         Vector to be projected.
 
     Examples
@@ -280,7 +284,7 @@ def proj_nonnegative_orthant(x: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    npt.ArrayLike
         Projection onto non negative orthant: negative entries of ``x`` are set to zero.
 
     Notes
@@ -297,13 +301,13 @@ def proj_nonnegative_orthant(x: np.ndarray) -> np.ndarray:
     return y
 
 
-def proj_segment(x: np.ndarray, a: Number = 0, b: Number = 1) -> np.ndarray:
+def proj_segment(x: npt.ArrayLike, a: Number = 0, b: Number = 1) -> npt.ArrayLike:
     r"""
     Orthogonal projection into a real segment.
 
     Parameters
     ----------
-    x: np.ndarray
+    x: npt.ArrayLike
         Vector to be projected.
     a: Number
         Left endpoint of the segement.
@@ -325,7 +329,7 @@ def proj_segment(x: np.ndarray, a: Number = 0, b: Number = 1) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    npt.ArrayLike
         Projection onto non negative orthant: negative entries of ``x`` are set to zero.
 
     Notes

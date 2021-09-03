@@ -184,7 +184,7 @@ class Map(ABC):
 
         """
         if arr.shape[axis] != self.shape[1]:
-            raise ValueError(
+            raise ValueError( 
                 f"Array size along specified axis and the map domain's dimension differ: {arr.shape[axis]} != {self.shape[1]}.")
         return _xp.apply_along_axis(func1d=self.__call__, axis=axis, arr=arr)
 

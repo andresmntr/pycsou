@@ -18,15 +18,15 @@ from typing import Union, Tuple, Optional
 from numbers import Number
 from pycsou.util.misc import is_range_broadcastable, range_broadcast_shape
 
-from pycsou.util import infer_array_module, cupy_enabled, dask_enabled, jax_enabled
+from pycsou.util import infer_array_module, deps
 
-if cupy_enabled:
+if deps.cupy_enabled:
     import cupy as cp
 
-if dask_enabled:
+if deps.dask_enabled:
     import dask.array as da
 
-if jax_enabled:
+if deps.jax_enabled:
     import jax.numpy as jnp
     import jax.dlpack as jxdl
 
@@ -295,7 +295,7 @@ class Map(ABC):
             other = HomothetyMap(constant=other, size=self.shape[1])
         
         # if isinstance(other, np.ndarray):
-        if isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
+        if isinstance(other, np.ndarray) or deps.is_cupy or deps.is_dask or deps.is_jax:
             return self(other)
         
         elif isinstance(other, Map):
@@ -537,8 +537,8 @@ class DifferentiableMap(Map):
 
             other = HomothetyMap(constant=other, size=self.shape[1])
 
-        # if isinstance(other, np.ndarray):
-        if isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
+        if isinstance(other, np.ndarray):
+        #if isinstance(other, np.ndarray) or deps.is_cupy or deps.is_dask or deps.is_jax:
             return self(other)
         elif isinstance(other, DifferentiableMap):
             return DiffMapComp(self, other)
@@ -935,7 +935,7 @@ class DiffMapStack(MapStack, DifferentiableMap):
             for diffmap in self.maps:
                 jacobian = diffmap.jacobianT(arg)
                 # if isinstance(jacobian, np.ndarray):
-                if isinstance(jacobian, np.ndarray) or (cupy_enabled and isinstance(jacobian, cp.ndarray)) or (dask_enabled and isinstance(jacobian, da.core.Array)) or (jax_enabled and isinstance(jacobian, jnp.ndarray)):
+                if deps.is_numpy(jacobian) or deps.is_cupy(jacobian) or deps.is_dask(jacobian) or deps.is_jax(jacobian):
                     jacobian = ExplicitLinearFunctional(jacobian, dtype=jacobian.dtype)
                 jacobianT_list.append(jacobian)
             return LinOpVStack(*jacobianT_list, n_jobs=self.n_jobs, joblib_backend=self.joblib_backend)
@@ -945,7 +945,7 @@ class DiffMapStack(MapStack, DifferentiableMap):
             for i, diffmap in enumerate(self.maps):
                 jacobian = diffmap.jacobianT(arg_split[i])
                 # if isinstance(jacobian, np.ndarray):
-                if isinstance(jacobian, np.ndarray) or (cupy_enabled and isinstance(jacobian, cp.ndarray)) or (dask_enabled and isinstance(jacobian, da.core.Array)) or (jax_enabled and isinstance(jacobian, jnp.ndarray)):
+                if deps.is_numpy(jacobian) or deps.is_cupy(jacobian) or deps.is_dask(jacobian) or deps.is_jax(jacobian):
                     jacobian = ExplicitLinearFunctional(jacobian, dtype=jacobian.dtype)
                 jacobianT_list.append(jacobian)
             return LinOpHStack(*jacobianT_list, n_jobs=self.n_jobs, joblib_backend=self.joblib_backend)

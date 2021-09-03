@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import pylops
 import scipy.sparse.linalg as spls
+import types
 
 from pycsou.core.map import DifferentiableMap, DiffMapSum, DiffMapComp, Map, MapSum, MapComp
 from typing import Union, Tuple, Optional
@@ -18,18 +19,12 @@ from abc import abstractmethod
 from numbers import Number
 from pylops.optimization.leastsquares import NormalEquationsInversion
 
-from pycsou.util import cupy_enabled, dask_enabled, jax_enabled
+from pycsou.util import deps
 
-if cupy_enabled:
+if deps.cupy_enabled:
     import cupy as cp
 
-if dask_enabled:
-    import dask.array as da
 
-if jax_enabled:
-    import jax.numpy as jnp
-    import jax.dlpack as jxdl
-    
 class LinearOperator(DifferentiableMap):
     r"""
     Base class for linear operators.
@@ -332,7 +327,7 @@ class LinearOperator(DifferentiableMap):
             self.lipschitz_cst = float(self.singularvals(k=1, **kwargs))
         self.diff_lipschitz_cst = self.lipschitz_cst
 
-    def todense(self) -> 'DenseLinearOperator':
+    def todense(self, backend: types.ModuleType = np) -> 'DenseLinearOperator':
         r"""
         Convert the operator to a :py:class:`~pycsou.linop.base.DenseLinearOperator`.
 
@@ -342,8 +337,11 @@ class LinearOperator(DifferentiableMap):
             The dense linear operator representation.
         """
         from pycsou.linop.base import DenseLinearOperator
-
-        return DenseLinearOperator(self.PyLop.todense())
+        if backend == np:
+            backend = 'numpy'
+        elif deps.cupy_enabled and backend == cp:
+            backend = 'cupy'
+        return DenseLinearOperator(self.PyLop.todense(backend=backend))
 
     def tosparse(self) -> 'SparseLinearOperator':
         r"""
@@ -469,8 +467,10 @@ class LinearOperator(DifferentiableMap):
 
             other = HomothetyMap(constant=other, size=self.shape[1])
 
-        #if isinstance(other, np.ndarray):
-        if isinstance(other, np.ndarray) or (cupy_enabled and isinstance(other, cp.ndarray)) or (dask_enabled and isinstance(other, da.core.Array)) or (jax_enabled and isinstance(other, jnp.ndarray)):
+        if isinstance(other, np.ndarray):
+            # print('other:', other)
+            # print('self:' , self)
+            # if isinstance(other, np.ndarray) or deps.is_cupy(other) or deps.is_dask(other) or deps.is_jax(other):
             return self(other)
         elif isinstance(other, LinearOperator):
             return LinOpComp(self, other)
@@ -478,6 +478,8 @@ class LinearOperator(DifferentiableMap):
             return DiffMapComp(self, other)
         elif isinstance(other, Map):
             return MapComp(self, other)
+        elif deps.is_cupy(other):
+            return self(other)
         else:
             raise NotImplementedError
 

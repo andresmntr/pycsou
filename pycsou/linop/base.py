@@ -8,7 +8,6 @@ r"""
 Classes for constructing linear operators.
 """
 
-
 import types
 import numpy as np
 import numpy.typing as npt
@@ -19,18 +18,20 @@ import pycsou.util.numpy as pnp
 from numbers import Number
 from typing import Union, Optional, Tuple, List
 from scipy import sparse as sparse
+from warnings import warn
 
 from pycsou.core.linop import LinearOperator
 from pycsou.core.map import DiffMapStack
-from pycsou.util import infer_array_module, cupy_enabled, dask_enabled, jax_enabled
+from pycsou.util import infer_array_module, deps
+from pycsou.util.backend import to_xp_conditional
 
-if cupy_enabled:
+if deps.cupy_enabled:
     import cupy as cp
 
-if dask_enabled:
+if deps.dask_enabled:
     import dask.array as da
 
-if jax_enabled:
+if deps.jax_enabled:
     import jax.numpy as jnp
     import jax.dlpack as jxdl
 
@@ -67,7 +68,6 @@ class PyLopLinearOperator(LinearOperator):
         return self.Op.rmatvec(y)
 
 
-#TODO: add compatibility later
 class ExplicitLinearOperator(LinearOperator):
     r"""
     Construct an explicit linear operator.
@@ -76,7 +76,8 @@ class ExplicitLinearOperator(LinearOperator):
     The array is stored in the attribute ``self.mat``.
     """
 
-    def __init__(self, array: Union[np.ndarray, sparse.spmatrix, da.core.Array], is_symmetric: bool = False):
+    infer_array_module(decorated_object_type='method')
+    def __init__(self, array: Union[sparse.spmatrix, npt.ArrayLike], _xp: Optional[types.ModuleType] = None, is_symmetric: bool = False, auto_arr_conversion: bool = False):
         r"""
         Parameters
         ----------
@@ -85,34 +86,60 @@ class ExplicitLinearOperator(LinearOperator):
         is_symmetric: bool
             Whether the linear operator is symmetric or not.
         """
-        if isinstance(array, np.ndarray):
+        self.xp = _xp
+        self.auto_arr_conversion = auto_arr_conversion
+        if isinstance(array, np.ndarray) or deps.is_cupy(array) or deps.is_jax(array):
             is_dense, is_sparse, is_dask = True, False, False
         elif isinstance(array, sparse.spmatrix):
             is_dense, is_sparse, is_dask = False, True, False
-        elif isinstance(array, da.core.Array):
-            is_dense, is_sparse, is_dask = False, False, True
+        elif deps.is_dask(array):
+            is_dense, is_sparse, is_dask = False, False, True            
         else:
             raise TypeError('Invalid input type.')
         super(ExplicitLinearOperator, self).__init__(shape=array.shape, dtype=array.dtype, is_explicit=True,
-                                                     is_dask=is_dask, is_dense=is_dense, is_sparse=is_sparse,
+                                                     is_dask=is_dask, is_dense=is_dense, is_sparse=is_sparse, 
                                                      is_symmetric=is_symmetric)
         self.mat = array
 
-    def __call__(self, x: Union[Number, np.ndarray, da.core.Array]) -> Union[Number, np.ndarray]:
-        if self.is_dask:
-            x = da.from_array(x) if not isinstance(x, da.core.Array) else x
-            return (self.mat.dot(x)).compute()
+    infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        if self.auto_arr_conversion:
+            if self.is_dask:
+                warn("Input array should be a Dask Array. Transforming array to Dask Array.")
+                x = da.from_array(x) if not isinstance(x, da.core.Array) else x
+                return (self.mat.dot(x)).compute()
+            elif deps.cupy_enabled and self.xp == cp != _xp:
+                warn("Input array should be a Cupy Array. Transforming array to Cupy Array.")
+                x = cp.array(x)
+                return self.mat.dot(x)
+            else:
+                return self.mat.dot(x)
         else:
+            # assert self.xp == _xp, f"The array module used ({_xp}) does not match the one used on initialization ({self.xp})."
+            if self.xp != _xp:
+                warn("The modules used are different, trying to convert to a device or distributed module.")
+                x, self.mat = to_xp_conditional(x, self.mat)
             return self.mat.dot(x)
 
-    def adjoint(self, y: Union[Number, np.ndarray, da.core.Array]) -> Union[Number, np.ndarray]:
-        if self.is_dask:
-            y = da.from_array(y) if not isinstance(y, da.core.Array) else y
-            return (self.mat.conj().transpose().dot(y)).compute()
+    infer_array_module
+    def adjoint(self, y: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        if self.auto_arr_conversion:
+            if self.is_dask:
+                y = da.from_array(y) if not isinstance(y, da.core.Array) else y
+                return (self.mat.conj().transpose().dot(y)).compute()
+            elif deps.cupy_enabled and self.xp == cp != _xp:
+                y = cp.array(y)
+            else:
+                return self.mat.conj().transpose().dot(y)
         else:
+            # assert self.xp == _xp, f"The array module used ({_xp}) does not match the one used on initialization ({self.xp})."
+            if self.xp != _xp:
+                warn("The modules used are different, trying to convert to a device or distributed module.")
+                y, self.mat = to_xp_conditional(y, self.mat)
             return self.mat.conj().transpose().dot(y)
 
-#TODO: add compatibility later
+
+
 class DenseLinearOperator(ExplicitLinearOperator):
     r"""
     Construct a linear operator from a Numpy array.
@@ -120,7 +147,7 @@ class DenseLinearOperator(ExplicitLinearOperator):
     The array is stored in the attribute ``self.mat``.
     """
 
-    def __init__(self, ndarray: np.ndarray, is_symmetric: bool = False):
+    def __init__(self, ndarray: npt.ArrayLike, is_symmetric: bool = False, auto_arr_conversion: bool = False):
         r"""
         Parameters
         ----------
@@ -129,9 +156,8 @@ class DenseLinearOperator(ExplicitLinearOperator):
         is_symmetric: bool
             Whether the linear operator is symmetric or not.
         """
-        super(DenseLinearOperator, self).__init__(array=ndarray, is_symmetric=is_symmetric)
+        super(DenseLinearOperator, self).__init__(array=ndarray, is_symmetric=is_symmetric, auto_arr_conversion=auto_arr_conversion)
 
-#TODO: add compatibility later
 class SparseLinearOperator(ExplicitLinearOperator):
     r"""
     Construct a linear operator from a sparse Scipy matrix (:py:class:`scipy.sparse.spmatrix`).
@@ -139,7 +165,7 @@ class SparseLinearOperator(ExplicitLinearOperator):
     The array is stored in the attribute ``self.mat``.
     """
 
-    def __init__(self, spmatrix: sparse.spmatrix, is_symmetric: bool = False):
+    def __init__(self, spmatrix: sparse.spmatrix, is_symmetric: bool = False, auto_arr_conversion: bool = False):
         r"""
         Parameters
         ----------
@@ -148,9 +174,8 @@ class SparseLinearOperator(ExplicitLinearOperator):
         is_symmetric: bool
             Whether the linear operator is symmetric or not.
         """
-        super(SparseLinearOperator, self).__init__(array=spmatrix, is_symmetric=is_symmetric)
+        super(SparseLinearOperator, self).__init__(array=spmatrix, is_symmetric=is_symmetric, auto_arr_conversion=auto_arr_conversion)
 
-#TODO: add compatibility later
 class DaskLinearOperator(ExplicitLinearOperator):
     r"""
     Construct a linear operator from a Dask array (:py:class:`dask.array.core.Array`).
@@ -158,7 +183,7 @@ class DaskLinearOperator(ExplicitLinearOperator):
     The array is stored in the attribute ``self.mat``.
     """
 
-    def __init__(self, dask_array: da.core.Array, is_symmetric: bool = False):
+    def __init__(self, dask_array: da.core.Array, is_symmetric: bool = False, auto_arr_conversion: bool = False):
         r"""
         Parameters
         ----------
@@ -167,8 +192,7 @@ class DaskLinearOperator(ExplicitLinearOperator):
         is_symmetric: bool
             Whether the linear operator is symmetric or not.
         """
-        super(DaskLinearOperator, self).__init__(array=dask_array, is_symmetric=is_symmetric)
-
+        super(DaskLinearOperator, self).__init__(array=dask_array, is_symmetric=is_symmetric, auto_arr_conversion=auto_arr_conversion)
 
 class LinOpStack(LinearOperator, DiffMapStack):
     r"""
@@ -562,9 +586,6 @@ def BlockDiagonalOperator(*linops: LinearOperator, n_jobs: int = 1) -> PyLopLine
     block_diag = pylops.BlockDiag(ops=pylinops)
     return PyLopLinearOperator(block_diag, lipschitz_cst=lipschitz_cst)
 
-########################################################3
-# VAS POR AQUIIIII
-#################################################3
 class DiagonalOperator(LinearOperator):
     r"""
     Construct a diagonal operator.
@@ -578,20 +599,28 @@ class DiagonalOperator(LinearOperator):
         diag:  Union[Number, np.ndarray]
             Diagonal of the operator.
         """
+        self.xp = _xp
         self.diag = _xp.asarray(diag).reshape(-1)
         super(DiagonalOperator, self).__init__(shape=(self.diag.size, self.diag.size), dtype=self.diag.dtype,
                                                is_explicit=False, is_dense=False, is_sparse=False, is_dask=False,
-                                               is_symmetric=np.alltrue(_xp.isreal(self.diag)))
+                                               is_symmetric=np.all(_xp.isreal(self.diag)))
         self.lipschitz_cst = self.diff_lipschitz_cst = np.max(diag)
 
-    def __call__(self, x: Union[Number, npt.ArrayLike]) -> Union[Number, np.ndarray, npt.ArrayLike]:
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        # assert self.xp == _xp, f"The array module ({_xp}) must match the one used in the operator diagonal ({self.xp})."
+        if self.xp != _xp:
+            x, self.diag = to_xp_conditional(x, self.diag)
         if self.shape[1] == 1:
-            # return np.asscalar(self.diag * x)
             return pnp.asscalar(self.diag * x)
         else:
             return self.diag * x
 
-    def adjoint(self, y: Union[Number, np.ndarray]) -> Union[Number, np.ndarray]:
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, y: Union[Number, np.ndarray], _xp: Optional[types.ModuleType] = None) -> Union[Number, npt.ArrayLike]:
+        # assert self.xp == _xp, f"The array module ({_xp}) must match the one used in the operator diagonal ({self.xp})."
+        if self.xp != _xp:
+            y, self.diag = to_xp_conditional(y, self.diag)
         if self.shape[0] == 1:
             return pnp.asscalar(self.diag.conj() * y)
         else:
@@ -602,8 +631,9 @@ class IdentityOperator(DiagonalOperator):
     r"""
     Square identity operator.
     """
-
-    def __init__(self, size: int, dtype: Optional[type] = None, xp: Optional[types.ModuleType] = np):
+    
+    # @infer_array_module(decorated_object_type='method')
+    def __init__(self, size: int, dtype: Optional[type] = None, _xp: types.ModuleType = np):
         r"""
         Parameters
         ----------
@@ -614,32 +644,29 @@ class IdentityOperator(DiagonalOperator):
         xp: Optional[types.ModuleType] = np
             Array module.
         """
-        diag = xp.ones(shape=(size,), dtype=dtype)
+        diag = _xp.ones(shape=(size,), dtype=dtype)
         super(IdentityOperator, self).__init__(diag)
         self.lipschitz_cst = self.diff_lipschitz_cst = 1
-
 
 class NullOperator(LinearOperator):
     r"""
     Null operator.
     """
 
-    def __init__(self, shape: Tuple[int, int], dtype: Optional[type] = np.float32, xp: Optional[types.ModuleType] = np):
+    def __init__(self, shape: Tuple[int, int], dtype: Optional[type] = np.float32, _xp: Optional[types.ModuleType] = np):
+        self.xp = _xp
         super(NullOperator, self).__init__(shape=shape, dtype=dtype,
                                            is_explicit=False, is_dense=False, is_sparse=False, is_dask=False,
                                            is_symmetric=True if (shape[0] == shape[1]) else False)
         self.lipschitz_cst = self.diff_lipschitz_cst = 0
-        self.xp = xp
 
-    # @infer_array_module(decorated_object_type='method')
-    # def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[type] =None) -> Union[Number, npt.ArrayLike]:
-    def __call__(self, x: Union[Number, npt.ArrayLike] = None) -> Union[Number, npt.ArrayLike]:
-        return self.xp.zeros(shape=self.shape[0], dtype=self.dtype)
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: Union[Number, npt.ArrayLike], _xp: Optional[type] =None) -> Union[Number, npt.ArrayLike]:
+        return _xp.zeros(shape=self.shape[0], dtype=self.dtype)
 
-    # @infer_array_module(decorated_object_type='method')
-    # def adjoint(self, y: Union[Number, npt.ArrayLike], _xp: Optional[type] =None) -> Union[Number, npt.ArrayLike]:
-    def adjoint(self, y: Union[Number, npt.ArrayLike] = None) -> Union[Number, npt.ArrayLike]:
-        return self.xp.zeros(shape=self.shape[1], dtype=self.dtype)
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, y: Union[Number, npt.ArrayLike], _xp: Optional[type] =None) -> Union[Number, npt.ArrayLike]:
+        return _xp.zeros(shape=self.shape[1], dtype=self.dtype)
 
     def eigenvals(self, k: int, which='LM', **kwargs) -> npt.ArrayLike:
         return self.xp.zeros(shape=(k,), dtype=self.dtype)
@@ -651,7 +678,7 @@ class NullOperator(LinearOperator):
 class HomothetyMap(DiagonalOperator):
     def __init__(self, size: int, constant: Number):
         self.cst = constant
-        super(HomothetyMap, self).__init__(diag=self.cst)
+        super(HomothetyMap, self).__init__(self.cst)
         self.shape = (size, size)
         self.lipschitz_cst = self.diff_lipschitz_cst = constant
 

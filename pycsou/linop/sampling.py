@@ -10,18 +10,23 @@ Sampling operators.
 This module provides sampling operators for discrete or continuous signals.
 """
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import dask.array as da
 import scipy.sparse as sparse
 import pylops
+import types
 from typing import Optional, Union, List, Callable, Tuple
 from pycsou.core.linop import LinearOperator
 from pycsou.linop.base import PyLopLinearOperator, ExplicitLinearOperator, DenseLinearOperator
-from skimage.measure import block_reduce
+from pycsou.util import infer_array_module, block_reduce, infer_module_from_array, deps
 from scipy.spatial import cKDTree
 import joblib as job
 
-
+if deps.cupy_enabled:
+    import cupy as cp
+    #import cudf
+    
 def SubSampling(size: int, sampling_indices: Union[np.ndarray, list], shape: Optional[tuple] = None, axis: int = 0,
                 dtype: str = 'float32', inplace: bool = True):
     r"""
@@ -121,7 +126,6 @@ def SubSampling(size: int, sampling_indices: Union[np.ndarray, list], shape: Opt
     PyLop = pylops.Restriction(M=size, iava=sampling_indices, dims=shape, dir=axis, dtype=dtype, inplace=inplace)
     return PyLopLinearOperator(PyLop=PyLop, is_symmetric=False, is_dense=False, is_sparse=False)
 
-
 class Masking(LinearOperator):
     r"""
     Masking operator.
@@ -163,7 +167,7 @@ class Masking(LinearOperator):
     :py:class:`~pycsou.linop.sampling.SubSampling`, :py:class:`~pycsou.linop.sampling.Downsampling`
     """
 
-    def __init__(self, size: int, sampling_bool: Union[np.ndarray, list], dtype: type = np.float32):
+    def __init__(self, size: int, sampling_bool: Union[npt.ArrayLike, list], dtype: type = np.float32, _xp: types.ModuleType = np):
         r"""
 
         Parameters
@@ -180,18 +184,20 @@ class Masking(LinearOperator):
         ValueError
             If the size of ``sampling_bool`` differs from ``size``.
         """
-        self.sampling_bool = np.asarray(sampling_bool).reshape(-1).astype(bool)
+        self.xp = _xp
+        self.sampling_bool = self.xp.asarray(sampling_bool).reshape(-1).astype(bool)
         self.input_size = size
         self.nb_of_samples = self.sampling_bool[self.sampling_bool == True].size
         if self.sampling_bool.size != size:
             raise ValueError('Invalid size of boolean sampling array.')
         super(Masking, self).__init__(shape=(self.nb_of_samples, self.input_size), dtype=dtype)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+    def __call__(self, x: npt.ArrayLike) -> npt.ArrayLike:
         return x[self.sampling_bool]
 
-    def adjoint(self, y: np.ndarray) -> np.ndarray:
-        x = np.zeros(shape=self.input_size, dtype=self.dtype)
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, y: npt.ArrayLike, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
+        x = _xp.zeros(shape=self.input_size, dtype=self.dtype)
         x[self.sampling_bool] = y
         return x
 
@@ -390,7 +396,6 @@ class DownSampling(Masking):
                 downsampled_mask = np.swapaxes(downsampled_mask, 0, self.axis)
         return downsampled_mask.reshape(-1)
 
-
 class Pooling(LinearOperator):
     r"""
     Pooling operator.
@@ -468,7 +473,7 @@ class Pooling(LinearOperator):
     """
 
     def __init__(self, shape: tuple, block_size: Union[tuple, list], pooling_func: str = 'mean',
-                 dtype: type = np.float32):
+                 dtype: type = np.float32, xp: types.ModuleType = np):
         """
 
         Parameters
@@ -488,6 +493,7 @@ class Pooling(LinearOperator):
             If the block size is inconsistent with the input array shape or if the pooling function is not supported.
 
         """
+        self.xp = xp
         if len(shape) != len(block_size):
             raise ValueError(f'Inconsistent block size {block_size} for array of shape {shape}.')
         if pooling_func not in ['mean', 'sum', 'average']:
@@ -495,17 +501,17 @@ class Pooling(LinearOperator):
         self.input_shape = shape
         self.block_size = block_size
         if pooling_func == 'mean':
-            self.pooling_func = np.mean
+            self.pooling_func = xp.mean
             self.pooling_func_kwargs = None
         elif pooling_func == 'sum':
-            self.pooling_func = np.sum
+            self.pooling_func = xp.sum
             self.pooling_func_kwargs = None
         else:
             self.pooling_func = None
             self.pooling_func_kwargs = None
         self.output_shape = self.get_output_shape()
-        self.output_size = int(np.prod(self.output_shape).astype(int))
-        self.input_size = int(np.prod(self.input_shape).astype(int))
+        self.output_size = int(xp.prod(self.output_shape).astype(int))
+        self.input_size = int(xp.prod(self.input_shape).astype(int))
         super(Pooling, self).__init__(shape=(self.output_size, self.input_size), dtype=dtype)
 
     def get_output_shape(self) -> tuple:
@@ -517,13 +523,13 @@ class Pooling(LinearOperator):
         tuple
             Output array shape.
         """
-        x = np.zeros(shape=self.input_shape, dtype=np.float)
-        y = block_reduce(image=x, block_size=self.block_size, func=self.pooling_func, cval=0,
+        x = self.xp.zeros(shape=self.input_shape, dtype=np.float)
+        y = block_reduce(x, block_size=self.block_size, func=self.pooling_func, cval=0,
                          func_kwargs=self.pooling_func_kwargs)
         return y.shape
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
-        return block_reduce(image=x.reshape(self.input_shape), block_size=self.block_size, func=self.pooling_func,
+        return block_reduce(x.reshape(self.input_shape), block_size=self.block_size, func=self.pooling_func,
                             func_kwargs=self.pooling_func_kwargs).reshape(-1)
 
     def adjoint(self, y: np.ndarray) -> np.ndarray:
@@ -536,6 +542,7 @@ class Pooling(LinearOperator):
         return x.reshape(-1)
 
 
+# TODO: add cudf for pandas Series GPU support
 class NNSampling(LinearOperator):
     r"""
     Nearest neighbours sampling operator.
@@ -578,7 +585,6 @@ class NNSampling(LinearOperator):
        import numpy as np
        from pycsou.linop.sampling import NNSampling
        import matplotlib.pyplot as plt
-       rng = np.random.default_rng(seed=0)
 
        rng = np.random.default_rng(seed=0)
        x = np.arange(24).reshape(4, 6)
@@ -639,12 +645,12 @@ class NNSampling(LinearOperator):
     :py:class:`~pycsou.linop.sampling.GeneralisedVandermonde`
     """
 
-    def __init__(self, samples: np.ndarray, grid: np.ndarray, dtype: type = np.float32):
+    def __init__(self, samples: npt.ArrayLike, grid: npt.ArrayLike, dtype: type = np.float32):
         """
 
         Parameters
         ----------
-        samples : np.ndarray
+        samples : npt.ArrayLike
             Off-grid sampling locations with shape (M,N).
         grid :
             Grid points with shape (L,N).
@@ -670,19 +676,37 @@ class NNSampling(LinearOperator):
         """
         Compute the on-grid nearest neighbours to the sampling locations.
         """
-        self.grid_tree = cKDTree(data=self.grid, compact_nodes=False, balanced_tree=False)
-        self.nn_distances, self.nn_indices = self.grid_tree.query(self.samples, k=1, p=2, n_jobs=-1)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
+        if deps.is_cupy(self.grid):
+            assert deps.is_cupy(self.samples), "Array modules for samples and grid should be the same"
+            grid = self.grid.get()
+            samples = self.samples.get()
+        elif deps.is_dask(self.grid) and deps.is_dask(self.samples):
+            grid = self.grid.compute()
+            samples = self.samples.compute()
+        else:
+            grid = self.grid
+            samples = self.samples
+        self.grid_tree = cKDTree(data=grid, compact_nodes=False, balanced_tree=False)
+        self.nn_distances, self.nn_indices = self.grid_tree.query(samples, k=1, p=2, n_jobs=-1)
+
+    @infer_array_module(decorated_object_type='method')
+    def __call__(self, x: npt.ArrayLike, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
         y = x[self.nn_indices]
         return y
 
-    def adjoint(self, y: np.ndarray) -> np.ndarray:
-        y_series = pd.Series(data=y, index=self.nn_indices)
+    @infer_array_module(decorated_object_type='method')
+    def adjoint(self, y: npt.ArrayLike, _xp: Optional[types.ModuleType] = None) -> npt.ArrayLike:
+        # maybe use cudf.Series https://docs.rapids.ai/api/cudf/stable/api.html#series
+        if deps.is_cupy(self.grid):
+            npy = y.get()
+        else:
+            npy = y
+        y_series = pd.Series(data=npy, index=self.nn_indices)
         y_series = y_series.groupby(
             by=y_series.index).mean()  # Average the samples associated to a common nearest neighbour.
         y = y_series.loc[self.nn_indices].values
-        x = np.zeros(shape=self.input_size, dtype=self.dtype)
+        x = _xp.zeros(shape=self.input_size, dtype=self.dtype)
         x[self.nn_indices] = y
         return x
 
@@ -737,38 +761,38 @@ class GeneralisedVandermonde(DenseLinearOperator):
     :py:class:`~pycsou.linop.sampling.MappedDistanceMatrix`
     """
 
-    def __init__(self, samples: np.ndarray, funcs: List[Callable], dtype: type = np.float32):
+    def __init__(self, samples: npt.ArrayLike, funcs: List[Callable] , dtype: type = np.float32):
         """
-
         Parameters
         ----------
-        samples : np.ndarray
+        samples : npt.ArrayLike
             Sampling locations with shape (L,N).
         funcs : list
             List of functions.
         dtype : type
             Type of input array.
         """
+        self.xp = infer_module_from_array(samples)
         self.samples = samples.reshape(-1)
         self.funcs = list(funcs)
         gen_vandermonde_mat = self.get_generalised_vandermonde_matrix().astype(dtype)
         super(GeneralisedVandermonde, self).__init__(ndarray=gen_vandermonde_mat, is_symmetric=False)
 
-    def _map_func(self, f: Callable) -> np.ndarray:
+    def _map_func(self, f: Callable) -> npt.ArrayLike:
         return f(self.samples)
 
-    def get_generalised_vandermonde_matrix(self) -> np.ndarray:
+    def get_generalised_vandermonde_matrix(self) -> npt.ArrayLike:
         """
         Construct the generalised Vandermonde matrix.
 
         Returns
         -------
-        np.ndarray
+        npt.ArrayLike
             The generalised Vandermonde matrix.
         """
-        return np.stack(list(map(self._map_func, self.funcs)), axis=-1)
+        return self.xp.stack(list(map(self._map_func, self.funcs)), axis=-1)
 
-
+# TODO
 class MappedDistanceMatrix(ExplicitLinearOperator):
     r"""
     Transformed Distance Matrix.
@@ -897,7 +921,7 @@ class MappedDistanceMatrix(ExplicitLinearOperator):
     :py:class:`~pycsou.linop.sampling.GeneralisedVandermonde`
     """
 
-    def __init__(self, samples1: np.ndarray, function: Callable, samples2: Optional[np.ndarray] = None,
+    def __init__(self, samples1: npt.ArrayLike, function: Callable, samples2: Optional[npt.ArrayLike] = None,
                  mode: str = 'radial', max_distance: Optional[np.float] = None, dtype: type = np.float32,
                  chunks: Union[str, int, tuple, None] = 'auto', operator_type: str = 'dask', verbose: bool = True,
                  n_jobs: int = -1, joblib_backend: str = 'loky', ord: float = 2., eps: float = 0):
@@ -905,11 +929,11 @@ class MappedDistanceMatrix(ExplicitLinearOperator):
 
         Parameters
         ----------
-        samples1 : np.ndarray
+        samples1 : npt.ArrayLike
             First point set with shape (L,N).
         function : Callable
             Function :math:`\varphi: \mathbb{R}_+\to \mathbb{C}` to apply to each entry of the distance matrix.
-        samples2 : Optional[np.ndarray]
+        samples2 : Optional[npt.ArrayLike]
             Optional second point set with shape (K,N). If ``None``, ``samples2`` is equal to ``samples1`` and the operator symmetric.
         mode : str
             How to compute the distances. If ``'radial'``, the Euclidean distance with respect to the Minkowski norm :math:`\|\cdot\|_p` is used. :math:`p` is specified via the parameter ``ord``  and has to meet the condition `1 <= p <= infinity`. If ``'zonal'`` the spherical geodesic distance is used.
@@ -1006,8 +1030,8 @@ class MappedDistanceMatrix(ExplicitLinearOperator):
                                        dtype=self.dtype).tocsr()
         return sparse_mdm
 
-    def _apply_function(self, coord_center: np.ndarray, coord_neighbours: np.ndarray, index_center: int,
-                        index_neighbours: list, iter_over: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _apply_function(self, coord_center: npt.ArrayLike, coord_neighbours: npt.ArrayLike, index_center: int,
+                        index_neighbours: list, iter_over: str) -> Tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike]:
         if self.mode == 'radial':
             distances = np.linalg.norm(coord_center[None, :] - coord_neighbours, axis=-1, ord=self.ord)
         else:
@@ -1038,13 +1062,13 @@ class MappedDistanceMatrix(ExplicitLinearOperator):
         mapped_distance_matrix = da.map_blocks(self.function, distances_da, dtype=self.dtype)
         return mapped_distance_matrix
 
-    def get_dense_mdm(self) -> np.ndarray:
+    def get_dense_mdm(self) -> npt.ArrayLike:
         r"""
         Form the Mapped Distance Matrix as a dense Numpy array.
 
         Returns
         -------
-        np.ndarray
+        npt.ArrayLike
             Mapped Distance Matrix as a Numpy array.
         """
         if self.mode == 'radial':

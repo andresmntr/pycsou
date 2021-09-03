@@ -12,14 +12,17 @@ This module provides differential operators for discrete signals defined over re
 Many of the linear operators provided in this module are derived from linear operators from `PyLops <https://pylops.readthedocs.io/en/latest/api/index.html#smoothing-and-derivatives>`_.
 """
 
-import numpy as np
+import types
 import pylops
+import numpy as np
+import numpy.typing as npt
+
 from typing import Optional, Union, Tuple, Iterable, List
 from pycsou.core.linop import LinearOperator
 from pycsou.linop.base import PyLopLinearOperator, SparseLinearOperator, LinOpVStack, \
     DiagonalOperator, IdentityOperator, PolynomialLinearOperator
 from numbers import Number
-
+from pycsou.util import infer_array_module
 
 def FirstDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, step: float = 1.0, edge: bool = True,
                     dtype: str = 'float32', kind: str = 'forward') -> PyLopLinearOperator:
@@ -220,7 +223,7 @@ def SecondDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, st
 
 
 def GeneralisedDerivative(size: int, shape: Optional[tuple] = None, axis: int = 0, step: float = 1.0, edge: bool = True,
-                          dtype: str = 'float32', kind_op='iterated', kind_diff='centered', **kwargs) -> LinearOperator:
+                          dtype: str = 'float32', xp: types.ModuleType = np, kind_op='iterated', kind_diff='centered', **kwargs) -> LinearOperator:
     r"""
     Generalised derivative.
 
@@ -335,32 +338,32 @@ def GeneralisedDerivative(size: int, shape: Optional[tuple] = None, axis: int = 
         Dgen = D ** N
         order = N
     elif kind_op == 'sobolev':
-        I = IdentityOperator(size=size)
+        I = IdentityOperator(size=size, _xp = xp)
         alpha = kwargs['constant']
         N = kwargs['order']
         Dgen = ((alpha ** 2) * I - D2) ** N
         order = 2 * N
     elif kind_op == 'exponential':
-        I = IdentityOperator(size=size)
+        I = IdentityOperator(size=size, _xp = xp)
         alpha = kwargs['constant']
         N = kwargs['order']
         Dgen = (alpha * I + D) ** N
         order = N
     elif kind_op == 'polynomial':
         coeffs = kwargs['coeffs']
-        Dgen = PolynomialLinearOperator(LinOp=D, coeffs=coeffs)
+        Dgen = PolynomialLinearOperator(LinOp=D, coeffs=coeffs, xp = xp)
         order = len(coeffs) - 1
     else:
         raise NotImplementedError(
             'Supported generalised derivative types are: iterated, sobolev, exponential, polynomial.')
 
     if shape is None:
-        kill_edges = np.ones(shape=Dgen.shape[0])
+        kill_edges = xp.ones(shape=Dgen.shape[0])
     else:
-        kill_edges = np.ones(shape=shape)
+        kill_edges = xp.ones(shape=shape)
 
     if axis > 0:
-        kill_edges = np.swapaxes(kill_edges, axis, 0)
+        kill_edges = xp.swapaxes(kill_edges, axis, 0)
     if kind_diff == 'forward':
         kill_edges[-order:] = 0
     elif kind_diff == 'backward':
@@ -371,7 +374,7 @@ def GeneralisedDerivative(size: int, shape: Optional[tuple] = None, axis: int = 
     else:
         pass
     if axis > 0:
-        kill_edges = np.swapaxes(kill_edges, 0, axis)
+        kill_edges = xp.swapaxes(kill_edges, 0, axis)
     KillEdgeOp = DiagonalOperator(kill_edges.reshape(-1))
     Dgen = KillEdgeOp * Dgen
     return Dgen
@@ -487,7 +490,7 @@ def FirstDirectionalDerivative(shape: tuple, directions: np.ndarray, step: Union
 
 
 def SecondDirectionalDerivative(shape: tuple, directions: np.ndarray, step: Union[float, Tuple[float, ...]] = 1.,
-                                edge: bool = True, dtype: str = 'float32'):
+                                edge: bool = True, dtype: str = 'float32', xp: types.ModuleType = np):
     r"""
     Second directional derivative.
 
@@ -595,12 +598,12 @@ def SecondDirectionalDerivative(shape: tuple, directions: np.ndarray, step: Unio
     """
     Pylop = PyLopLinearOperator(
         pylops.SecondDirectionalDerivative(dims=shape, v=directions, sampling=step, edge=edge, dtype=dtype))
-    kill_edges = np.ones(shape=shape)
+    kill_edges = xp.ones(shape=shape)
     for axis in range(len(shape)):
-        kill_edges = np.swapaxes(kill_edges, axis, 0)
+        kill_edges = xp.swapaxes(kill_edges, axis, 0)
         kill_edges[-2:] = 0
         kill_edges[:2] = 0
-        kill_edges = np.swapaxes(kill_edges, 0, axis)
+        kill_edges = xp.swapaxes(kill_edges, 0, axis)
     KillEdgeOp = DiagonalOperator(kill_edges.reshape(-1))
     DirD2 = KillEdgeOp * Pylop
     return DirD2
@@ -958,7 +961,7 @@ def Laplacian(shape: tuple, weights: Tuple[float] = (1, 1), step: Union[tuple, f
 
 
 def GeneralisedLaplacian(shape: Optional[tuple] = None, step: Union[tuple, float] = 1., edge: bool = True,
-                         dtype: str = 'float32', kind='iterated', **kwargs) -> LinearOperator:
+                         dtype: str = 'float32', xp: types.ModuleType = np, kind='iterated', **kwargs) -> LinearOperator:
     r"""
     Generalised Laplacian operator.
 
@@ -1056,12 +1059,12 @@ def GeneralisedLaplacian(shape: Optional[tuple] = None, step: Union[tuple, float
         raise NotImplementedError(
             'Supported generalised derivative types are: iterated, sobolev, polynomial.')
 
-    kill_edges = np.ones(shape=shape)
+    kill_edges = xp.ones(shape=shape)
     for axis in range(len(shape)):
-        kill_edges = np.swapaxes(kill_edges, axis, 0)
+        kill_edges = xp.swapaxes(kill_edges, axis, 0)
         kill_edges[-order:] = 0
         kill_edges[:order] = 0
-        kill_edges = np.swapaxes(kill_edges, 0, axis)
+        kill_edges = xp.swapaxes(kill_edges, 0, axis)
 
     KillEdgeOp = DiagonalOperator(kill_edges.reshape(-1))
     Dgen = KillEdgeOp * Dgen
